@@ -153,7 +153,9 @@ def parse_wgzimmer_search_results(
                 )
                 # Image URLs seem absolute already on the site
                 listing_data["img_url"] = (
-                    relative_img_url  # Pydantic will validate if it's a URL
+                    relative_img_url
+                    if relative_img_url != "/docroot/img.wgzimmer.ch/loading.gif"
+                    else None
                 )
 
                 # --- Create Listing Object ---

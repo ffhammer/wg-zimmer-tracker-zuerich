@@ -2,6 +2,7 @@ import time
 import random
 import logging
 import os
+from parse import parse_wgzimmer_search_results, Listing
 from playwright.sync_api import (
     sync_playwright,
     TimeoutError as PlaywrightTimeoutError,
@@ -10,29 +11,21 @@ from playwright.sync_api import (
 
 # --- Configuration ---
 TARGET_URL = "https://www.wgzimmer.ch/wgzimmer/search/mate.html"
-MIN_PRICE = "500"
-MAX_PRICE = "1000"
-REGION = "zurich-stadt"  # Value from the select dropdown
-PERSISTENT_CONTEXT_FILE = "good.json"  # File to store cookies/session
-LOG_DIR = "logs"
-OUTPUT_DIR = "output"
-LOG_FILE = os.path.join(LOG_DIR, "scraping.log")
-VIDEO_FILE = os.path.join(LOG_DIR, "scraping_session.webm")
+PERSISTENT_CONTEXT_FILE = "good.json"
 
-# --- Setup ---
-# Create directories if they don't exist
-os.makedirs(LOG_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+class CapthaError(Exception):
+    pass
 
 
 # --- Helper Functions ---
-def setup_logging():
+def setup_logging(log_file):
     """Configures logging to file and console."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[
-            logging.FileHandler(LOG_FILE, mode="w"),  # 'w' to overwrite log each run
+            logging.FileHandler(log_file, mode="w"),  # 'w' to overwrite log each run
             logging.StreamHandler(),
         ],
     )
@@ -47,9 +40,9 @@ def random_delay(min_ms=300, max_ms=800):
     time.sleep(delay)
 
 
-def take_screenshot(page, name):
+def take_screenshot(page, name, log_dir):
     """Takes a screenshot and saves it to the logs directory."""
-    path = os.path.join(LOG_DIR, f"{name}.png")
+    path = os.path.join(log_dir, f"{name}.png")
     try:
         page.screenshot(path=path, full_page=True)
         logging.info(f"Screenshot saved: {path}")
@@ -61,7 +54,11 @@ def take_screenshot(page, name):
 
 
 def initialize_browser_context(
-    p, headless=False, proxy_settings=None, record_video=True
+    log_dir,
+    p,
+    headless=False,
+    proxy_settings=None,
+    record_video=True,
 ):
     """Launches the browser and creates a context (new or from state)."""
     logging.info("Launching browser...")
@@ -82,8 +79,8 @@ def initialize_browser_context(
         "timezone_id": "Europe/Zurich",
     }
     if record_video:
-        context_options["record_video_dir"] = LOG_DIR
-        logging.info(f"Video recording enabled. Saving to: {LOG_DIR}")
+        context_options["record_video_dir"] = log_dir
+        logging.info(f"Video recording enabled. Saving to: {log_dir}")
 
     try:
         context = browser.new_context(
@@ -102,13 +99,13 @@ def initialize_browser_context(
     return browser, context
 
 
-def navigate_and_prepare_search(page, url):
+def navigate_and_prepare_search(page, url, log_dir):
     """Navigates to the target URL and handles potential pre-filled search."""
     logging.info(f"Navigating to {url}...")
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
         logging.info("Page loaded initially.")
-        take_screenshot(page, "01_initial_page")
+        take_screenshot(page, "01_initial_page", log_dir)
         random_delay(2000, 4000)  # Wait for dynamic elements
 
         # Check if a search is already saved (indicated by "Neue Suche" button)
@@ -123,22 +120,22 @@ def navigate_and_prepare_search(page, url):
             neue_suche_button.click()
             page.wait_for_load_state("domcontentloaded", timeout=30000)
             logging.info("Navigated to the main search page.")
-            take_screenshot(page, "01a_navigated_to_new_search")
+            take_screenshot(page, "01a_navigated_to_new_search", log_dir)
             random_delay()
         else:
             logging.info("On the main search page or form is already visible.")
 
     except PlaywrightTimeoutError:
         logging.error(f"Timeout navigating to {url} or finding 'Neue Suche'.")
-        take_screenshot(page, "error_navigation_timeout")
+        take_screenshot(page, "error_navigation_timeout", log_dir)
         raise
     except PlaywrightError as e:
         logging.error(f"Playwright error during navigation/preparation: {e}")
-        take_screenshot(page, "error_navigation_generic")
+        take_screenshot(page, "error_navigation_generic", log_dir)
         raise
 
 
-def fill_search_form(page, min_price, max_price, region):
+def fill_search_form(page, min_price, max_price, region, log_dir):
     """Fills the search form fields."""
     logging.info("Filling the search form...")
     form_selector = "form#searchMateForm"
@@ -174,20 +171,20 @@ def fill_search_form(page, min_price, max_price, region):
         page.locator(f'{form_selector} input[name="permanent"][value="true"]').check()
         random_delay()
 
-        take_screenshot(page, "02_form_filled")
+        take_screenshot(page, "02_form_filled", log_dir=log_dir)
         logging.info("Search form filled.")
 
     except PlaywrightTimeoutError:
         logging.error("Timeout waiting for search form elements.")
-        take_screenshot(page, "error_form_fill_timeout")
+        take_screenshot(page, "error_form_fill_timeout", log_dir=log_dir)
         raise
     except PlaywrightError as e:
         logging.error(f"Playwright error filling the form: {e}")
-        take_screenshot(page, "error_form_fill_generic")
+        take_screenshot(page, "error_form_fill_generic", log_dir=log_dir)
         raise
 
 
-def submit_search_and_verify(page):
+def submit_search_and_verify(page, log_dir):
     """Submits the form and checks for CAPTCHA or successful results page."""
     logging.info("Submitting search form...")
     form_selector = "form#searchMateForm"
@@ -217,16 +214,15 @@ def submit_search_and_verify(page):
         # Consider adjusting this value based on observation.
         logging.info("Waiting after submit (10s)...")
         time.sleep(10)
-        take_screenshot(page, "03_after_submit")
+        take_screenshot(page, "03_after_submit", log_dir)
 
         # 1. Check for CAPTCHA
         page_content_lower = page.content().lower()
         if "Das Verarbeiten der Anfrage".lower() in page_content_lower:
             # More specific checks might be needed depending on the CAPTCHA implementation
             logging.error("CAPTCHA detected after form submission.")
-            take_screenshot(page, "error_captcha_detected")
-            time.sleep(100)
-            raise ValueError("CAPTCHA detected")  # Raise specific error
+            take_screenshot(page, "error_captcha_detected", log_dir)
+            raise CapthaError("CAPTCHA detected")  # Raise specific error
 
         # 2. Check for success (e.g., presence of "Neue Suche" button on results page)
         #    We expect the "Neue Suche" button to be visible again on the results page.
@@ -246,15 +242,15 @@ def submit_search_and_verify(page):
         logging.error(
             "Timeout waiting for submit button or during post-submit verification."
         )
-        take_screenshot(page, "error_submit_timeout")
+        take_screenshot(page, "error_submit_timeout", log_dir)
         raise
     except PlaywrightError as e:
         logging.error(f"Playwright error during form submission or verification: {e}")
-        take_screenshot(page, "error_submit_generic")
+        take_screenshot(page, "error_submit_generic", log_dir)
         raise
 
 
-def sort_results(page):
+def sort_results(page, log_dir):
     """Sorts the results by date (oldest first)."""
     logging.info("Sorting results by 'Ab dem' (oldest first)...")
     sort_link_selector = 'a:has-text("Ab dem")'
@@ -267,49 +263,50 @@ def sort_results(page):
             "domcontentloaded", timeout=20000
         )  # Wait for potential reload
         random_delay(1000, 2000)
-        take_screenshot(page, "04a_sorted_desc")  # Screenshot after first click
+        take_screenshot(page, "04a_sorted_desc", log_dir=log_dir)
 
         logging.info("Clicking 'Ab dem' (2nd time)...")
         # Re-locate the element in case the page reloaded fully
         page.locator(sort_link_selector).click()
         page.wait_for_load_state("domcontentloaded", timeout=20000)  # Wait again
         random_delay(1000, 2000)
-        take_screenshot(page, "04b_sorted_asc")  # Screenshot after second click
+        take_screenshot(page, "04b_sorted_asc", log_dir=log_dir)
         logging.info("Results sorted.")
     except PlaywrightTimeoutError:
         logging.error("Timeout waiting for sort link or page reload during sorting.")
-        take_screenshot(page, "error_sort_timeout")
+        take_screenshot(page, "error_sort_timeout", log_dir=log_dir)
         # Decide if this is critical - maybe continue without sorting?
         # raise # Uncomment to make sorting failure critical
     except PlaywrightError as e:
         logging.error(f"Playwright error during sorting: {e}")
-        take_screenshot(page, "error_sort_generic")
+        take_screenshot(page, "error_sort_generic", log_dir=log_dir)
         # raise # Uncomment to make sorting failure critical
 
 
-def scrape_results_pages(page):
+def scrape_results_pages(page, log_dir) -> list[Listing]:
     """Iterates through result pages, takes screenshots, and saves HTML content."""
     logging.info("Starting scraping results pages...")
-    scraped_html_list = []
+    all_listings = []
     page_num = 1
 
-    for _ in range(5):
+    while True:
         logging.info(f"--- Processing Page {page_num} ---")
         random_delay(1500, 3000)  # Spend some time on the page
 
         # Take screenshot of the current page
-        take_screenshot(page, f"page_{page_num}")
+        take_screenshot(page, f"page_{page_num}", log_dir)
 
         # Append HTML content to the list
-        try:
-            html_content = page.content()
-            scraped_html_list.append(html_content)
-            logging.info(f"Captured HTML content for page {page_num}.")
-        except PlaywrightError as e:
-            logging.error(f"Failed to get HTML content for page {page_num}: {e}")
-            # Decide whether to continue or stop
 
-        # Find the "Next" button/link
+        html_content = page.content()
+        current_pages, total_pags, listings = parse_wgzimmer_search_results(
+            html_content=html_content
+        )
+        all_listings.extend(listings)
+
+        if current_pages == total_pags:
+            break
+
         # Using :near() might be fragile, prefer a more direct selector if possible
         # Let's try a common pattern: a link with text "Next" or similar, often within pagination controls
         next_button = page.locator(
@@ -340,79 +337,78 @@ def scrape_results_pages(page):
             logging.warning(
                 f"Timeout checking 'Next' button state on page {page_num}. Assuming end of results."
             )
-            take_screenshot(page, f"warning_next_button_timeout_p{page_num}")
+            take_screenshot(page, f"warning_next_button_timeout_p{page_num}", log_dir)
             break
         except PlaywrightError as e:
             # This might happen if the locator doesn't find the element at all
             logging.info(
                 f"Could not find 'Next' button using selectors, assuming end of results. Error: {e}"
             )
-            take_screenshot(page, f"info_next_button_not_found_p{page_num}")
+            take_screenshot(page, f"info_next_button_not_found_p{page_num}", log_dir)
             break  # Exit loop if element not found
 
-    logging.info(f"Finished scraping {len(scraped_html_list)} pages.")
-    return scraped_html_list
+    logging.info(f"Finished scraping {len(all_listings)} pages.")
+    return all_listings
 
 
-def save_scraped_data(html_list, output_dir):
-    """Saves the collected HTML content to individual files."""
-    if not html_list:
-        logging.warning("No HTML content was scraped to save.")
-        return
-
-    logging.info(f"Saving {len(html_list)} scraped HTML pages to {output_dir}...")
-    for i, html_content in enumerate(html_list):
-        file_path = os.path.join(output_dir, f"website_{i+1}.html")
-        try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(html_content)
-            logging.debug(f"Saved {file_path}")
-        except IOError as e:
-            logging.error(f"Failed to save file {file_path}: {e}")
-    logging.info("Finished saving HTML files.")
-
-
-# --- Main Execution ---
-
-
-def main():
+def fetch_listings(
+    headless: bool,
+    log_dir: str,
+    min_price: int,
+    max_price: int,
+    region: str = "zurich-stadt",
+) -> list[Listing]:
     """Main function to orchestrate the scraping process."""
-    setup_logging()
+
+    os.makedirs(
+        log_dir,
+        exist_ok=True,
+    )
+    LOG_FILE = os.path.join(log_dir, "scraping.log")
+    setup_logging(log_file=LOG_FILE)
+
+    if min_price not in range(200, 1550, 50):
+        raise ValueError("invalid min_price")
+    if max_price not in range(200, 1550, 50):
+        raise ValueError("invalid max_price")
+
     logging.info("--- Starting WG Zimmer Scraper ---")
 
     browser = None
     context = None
     page = None
-    scraped_data = []
-
     try:
         with sync_playwright() as p:
             browser, context = initialize_browser_context(
-                p, headless=False, record_video=True
-            )  # Set headless=True for production
+                log_dir, p, headless=headless, record_video=True
+            )
             page = context.new_page()
 
-            navigate_and_prepare_search(page, TARGET_URL)
-            fill_search_form(page, MIN_PRICE, MAX_PRICE, REGION)
-            submit_search_and_verify(page)
-            sort_results(page)  # Sort after successful submission
-            scraped_data = scrape_results_pages(page)
-            save_scraped_data(scraped_data, OUTPUT_DIR)
-
+            navigate_and_prepare_search(page, TARGET_URL, log_dir)
+            fill_search_form(
+                page,
+                min_price=str(min_price),
+                max_price=str(max_price),
+                region=region,
+                log_dir=log_dir,
+            )
+            submit_search_and_verify(page, log_dir)
+            sort_results(page, log_dir)  # Sort after successful submission
+            listings = scrape_results_pages(page, log_dir)
             logging.info("Scraping process completed successfully.")
-            take_screenshot(page, "99_final_page_state")
+            take_screenshot(page, "99_final_page_state", log_dir)
+            logging.info("--- WG Zimmer Scraper Finished ---")
+
+            return listings
 
     except PlaywrightTimeoutError as e:
         logging.error(f"A timeout error occurred: {e}")
         if page:
-            take_screenshot(page, "error_timeout_final")
+            take_screenshot(page, "error_timeout_final", log_dir=log_dir)
     except PlaywrightError as e:
         logging.error(f"A Playwright error occurred: {e}")
         if page:
             take_screenshot(page, "error_playwright_final")
-    except ValueError as e:  # Catch specific errors like CAPTCHA
-        logging.error(f"A value error occurred (e.g., CAPTCHA): {e}")
-        # Screenshot likely already taken in the function that raised it
     except Exception as e:
         logging.exception(
             f"An unexpected error occurred: {e}"
@@ -421,9 +417,8 @@ def main():
             take_screenshot(page, "error_unexpected_final")
     finally:
         if context:
-            logging.info(f"Saving context state to {PERSISTENT_CONTEXT_FILE}...")
             try:
-                context.close()  # Close context to finalize video if recording
+                context.close()
                 logging.info("Context closed.")
             except PlaywrightError as e:
                 logging.error(
@@ -431,16 +426,3 @@ def main():
                 )
             except Exception as e:
                 logging.error(f"Could not save context state: {e}")
-
-        if browser:
-            browser.close()
-            logging.info("Browser closed.")
-
-        # Save scraped data regardless of errors during scraping (if any was collected)
-        save_scraped_data(scraped_data, OUTPUT_DIR)
-
-        logging.info("--- WG Zimmer Scraper Finished ---")
-
-
-if __name__ == "__main__":
-    main()
