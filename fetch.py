@@ -18,21 +18,6 @@ class CapthaError(Exception):
     pass
 
 
-# --- Helper Functions ---
-def setup_logging(log_file):
-    """Configures logging to file and console."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[
-            logging.FileHandler(log_file, mode="w"),  # 'w' to overwrite log each run
-            logging.StreamHandler(),
-        ],
-    )
-    # Suppress noisy playwright logs if desired
-    logging.getLogger("playwright").setLevel(logging.WARNING)
-
-
 def random_delay(min_ms=300, max_ms=800):
     """Adds a random delay in seconds."""
     delay = random.uniform(min_ms / 1000.0, max_ms / 1000.0)
@@ -356,16 +341,10 @@ def fetch_listings(
     log_dir: str,
     min_price: int,
     max_price: int,
+    record_video=True,
     region: str = "zurich-stadt",
 ) -> list[Listing]:
     """Main function to orchestrate the scraping process."""
-
-    os.makedirs(
-        log_dir,
-        exist_ok=True,
-    )
-    LOG_FILE = os.path.join(log_dir, "scraping.log")
-    setup_logging(log_file=LOG_FILE)
 
     if min_price not in range(200, 1550, 50):
         raise ValueError("invalid min_price")
@@ -380,7 +359,7 @@ def fetch_listings(
     try:
         with sync_playwright() as p:
             browser, context = initialize_browser_context(
-                log_dir, p, headless=headless, record_video=True
+                log_dir, p, headless=headless, record_video=record_video
             )
             page = context.new_page()
 
