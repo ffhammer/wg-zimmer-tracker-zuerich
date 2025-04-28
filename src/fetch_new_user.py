@@ -15,12 +15,45 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from parse import parse_wgzimmer_search_results
 from pydantic import BaseModel
 from dotenv import load_dotenv
+import sys
 
 load_dotenv()
 
+LOG_FILE_PATH = "/app/app.log"  # Log file inside the container
+LOG_LEVEL = logging.INFO
+
+# --- Configure Logging to File ---
+log_formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
+# File Handler
+file_handler = logging.FileHandler(LOG_FILE_PATH, mode="a")  # 'a' for append
+file_handler.setFormatter(log_formatter)
+
+# Get root logger and add the file handler
+root_logger = logging.getLogger()
+root_logger.setLevel(LOG_LEVEL)
+# Remove existing handlers if basicConfig was somehow called before or by libraries implicitly
+for handler in root_logger.handlers[:]:
+    root_logger.removeHandler(handler)
+# Add our file handler
+root_logger.addHandler(file_handler)
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(log_formatter)
+root_logger.addHandler(console_handler)
+
+sys.stdout.reconfigure(line_buffering=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stdout,
+)
+
 assert os.getenv("GEMINI_API_KEY"), "Missing GEMINI_API_KEY in environment."
 
-logging.basicConfig(level=logging.INFO)
 
 all_contents: List[str] = []
 
@@ -91,6 +124,8 @@ async def main(
 
 
 if __name__ == "__main__":
+    logging.info("Entering main execution block.")
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--export_path", type=str, required=True)
     parser.add_argument("--max_price", type=int, default=800)
@@ -126,6 +161,6 @@ if __name__ == "__main__":
             logging.error(f"Failed to parse page {idx}: {e}")
 
     with open(args.export_path, "w") as f:
-        f.write("\n".join(i.model_dump_json() for i in listings))
+        f.write("\n".join((i.model_dump_json() for i in listings)))
 
     logging.info(f"Successfully saved to {args.export_path}")

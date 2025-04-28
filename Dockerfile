@@ -12,7 +12,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && playwright install --with-deps
-COPY . .
+COPY src src
+COPY entrypoint.sh .
 
-ENTRYPOINT ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1920x1080x24", "python", "fetch_new_user.py"]
-CMD ["--export_path", "listings/out.json"]
+# Make entrypoint executable
+RUN chmod +x entrypoint.sh
+
+# Set the entrypoint script
+ENTRYPOINT ["/app/entrypoint.sh"]
