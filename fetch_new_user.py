@@ -1,7 +1,6 @@
 import argparse
 import asyncio
 import os
-import sys
 import logging
 from typing import List
 from browser_use import (
@@ -15,6 +14,9 @@ from browser_use import (
 from langchain_google_genai import ChatGoogleGenerativeAI
 from parse import parse_wgzimmer_search_results
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+load_dotenv()
 
 assert os.getenv("GEMINI_API_KEY"), "Missing GEMINI_API_KEY in environment."
 
@@ -38,7 +40,6 @@ async def save_content(params: PageParam, browser: Browser):
     return ActionResult(extracted_content="page content saved")
 
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-04-17")
 browser = Browser(
     config=BrowserConfig(
         headless=False,
@@ -52,20 +53,31 @@ browser = Browser(
 )
 
 
-async def main(max_price: int, region: str, nur_unbefristete: bool):
+async def main(
+    max_price: int,
+    region: str,
+    nur_unbefristete: bool,
+    llm,
+):
     global all_contents
     all_contents.clear()
 
     task = f"""
-        First go to google.com and search 'test' manually.
-        Then go to https://www.wgzimmer.ch/wgzimmer/search/mate.html and
-        search for flats in {region} up to {max_price} CHF.
+        First go to google.com and search 'www.wgzimmer.ch' manually.
+        Then click on www.wgzimmer.ch and navigate to 'ein freies zimmer suchen'
+        Now search for flats in {region} up to {max_price} CHF.
     """
     if nur_unbefristete:
         task += " Only show 'Nur Unbefristete' offers."
-    task += " Skip through all pages and save contents."
+    task += " Skip through all and save all via save_content result. You don't need to scroll through them."
+    task += " When you encounter adds or pop ups, close them."
 
-    agent = Agent(task=task, llm=llm, browser=browser, controller=controller)
+    agent = Agent(
+        task=task,
+        llm=llm,
+        browser=browser,
+        controller=controller,
+    )
     res = await agent.run()
 
     final_result: ActionResult = res.history[-1].result[-1]
@@ -83,8 +95,16 @@ if __name__ == "__main__":
     parser.add_argument("--export_path", type=str, required=True)
     parser.add_argument("--max_price", type=int, default=800)
     parser.add_argument("--region", type=str, default="zürich stadt")
-    parser.add_argument("--nur_unbefristete", action="store_true")
+    parser.add_argument(
+        "--gemini_model", type=str, default="gemini-2.5-flash-preview-04-17"
+    )
+    parser.add_argument(
+        "--nur_unbefristete",
+        action="store_true",
+    )
     args = parser.parse_args()
+
+    llm = ChatGoogleGenerativeAI(model=args.gemini_model)
 
     os.makedirs(os.path.dirname(args.export_path), exist_ok=True)
 
@@ -93,6 +113,7 @@ if __name__ == "__main__":
             max_price=args.max_price,
             region=args.region,
             nur_unbefristete=args.nur_unbefristete,
+            llm=llm,
         )
     )
 
