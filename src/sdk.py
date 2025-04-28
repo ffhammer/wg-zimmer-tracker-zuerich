@@ -127,7 +127,6 @@ def run_wgzimmer_fetcher(
                     )
                     success_detected = True
                 if ENTRYPOINT_FINISHED_MARKER in line_stripped:
-                    # Check if it indicates a clean exit (code 0)
                     if (
                         "exited naturally with code 0" in line_stripped
                         or "exited with code 0" in line_stripped
@@ -138,7 +137,6 @@ def run_wgzimmer_fetcher(
                         )
                         clean_exit_detected = True
 
-        # Wait for the process to terminate and get the exit code
         process.wait()
         return_code = process.returncode
 
@@ -149,32 +147,43 @@ def run_wgzimmer_fetcher(
             f"--- Clean exit detected via log: {clean_exit_detected}", file=sys.stderr
         )
 
-        # Determine overall success:
-        # Need the success marker AND a clean exit (either code 0 or detected via log)
-        overall_success = success_detected and (return_code == 0 or clean_exit_detected)
-
-        if return_code != 0 and not overall_success:
+        # --- Geänderte Logik ---
+        # Prüfe, ob ein Fehler aufgetreten ist
+        # Fehler, wenn return_code != 0 ODER wenn der Success Marker fehlt
+        # (Clean exit via log ist nur eine Zusatzinfo, wir verlassen uns primär auf den Code
+        # UND den Marker aus dem Python-Skript)
+        if return_code != 0:
             raise DockerComposeRunnerError(
-                f"Docker Compose process failed with exit code {return_code} "
-                f"and success marker was {'not ' if not success_detected else ''}found."
+                f"Docker Compose process failed with exit code {return_code}."
+            )
+        if not success_detected:
+            raise DockerComposeRunnerError(
+                f"Docker Compose process finished with exit code 0, "
+                f"but the success marker '{SUCCESS_MARKER}' was not found in logs."
             )
 
+        # Wenn wir hier ankommen, war alles erfolgreich.
+        # Die Funktion endet einfach (implizites Return None).
+
     except FileNotFoundError:
-        print(
-            "--- Error: 'docker-compose' command not found. Is it installed and in your PATH?",
-            file=sys.stderr,
-        )
-        raise  # Re-raise the exception
+        print("--- Error: 'docker-compose' command not found.", file=sys.stderr)
+        raise DockerComposeRunnerError("docker-compose command not found.") from None
+    except subprocess.CalledProcessError as e:  # Fängt Fehler direkt von Popen/wait ab
+        print(f"--- Docker Compose execution failed: {e}", file=sys.stderr)
+        raise DockerComposeRunnerError(f"Docker Compose execution failed: {e}") from e
     except Exception as e:
-        print(f"--- An unexpected error occurred: {e}", file=sys.stderr)
-        # Ensure process is terminated if it's still running (though unlikely here)
+        print(f"--- An unexpected error occurred in SDK: {e}", file=sys.stderr)
         if process and process.poll() is None:
-            process.terminate()
-        raise DockerComposeRunnerError(f"SDK wrapper failed: {e}") from e
-    finally:
-        # Optional: extra cleanup if needed, though Popen usually handles it
-        if process and process.stdout:
-            process.stdout.close()
+            try:
+                process.terminate()
+                process.wait(timeout=5)  # Wait a bit for termination
+            except:  # Catch potential errors during termination
+                pass
+        # Wrap unknown errors too
+        if not isinstance(e, DockerComposeRunnerError):
+            raise DockerComposeRunnerError(f"SDK wrapper failed: {e}") from e
+        else:
+            raise
 
 
 # --- Example Usage ---
