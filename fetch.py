@@ -11,7 +11,7 @@ from playwright.sync_api import (
 
 # --- Configuration ---
 TARGET_URL = "https://www.wgzimmer.ch/wgzimmer/search/mate.html"
-PERSISTENT_CONTEXT_FILE = "good.json"
+PERSISTENT_CONTEXT_FILE = "cookies.json"
 
 
 class CapthaError(Exception):
@@ -52,6 +52,7 @@ def initialize_browser_context(
             headless=headless,
             slow_mo=50,
             proxy=proxy_settings,
+            # args=["--start-maximized", "--disable-blink-features=AutomationControlled"],
         )
     except PlaywrightError as e:
         logging.error(f"Failed to launch browser: {e}")
@@ -60,7 +61,7 @@ def initialize_browser_context(
     context_options = {
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",  # Keep UA updated
         "viewport": {"width": 1920, "height": 1080},
-        "locale": "de-CH",  # More specific locale
+        "locale": "de-CH",
         "timezone_id": "Europe/Zurich",
     }
     if record_video:
@@ -211,6 +212,7 @@ def submit_search_and_verify(page, log_dir):
 
         # 2. Check for success (e.g., presence of "Neue Suche" button on results page)
         #    We expect the "Neue Suche" button to be visible again on the results page.
+        time.sleep(2)
         neue_suche_button_results = page.locator('a:has-text("Neue Suche")').first
         if not neue_suche_button_results.is_visible(
             timeout=5000
@@ -234,37 +236,6 @@ def submit_search_and_verify(page, log_dir):
         take_screenshot(page, "error_submit_generic", log_dir)
         raise
 
-
-def sort_results(page, log_dir):
-    """Sorts the results by date (oldest first)."""
-    logging.info("Sorting results by 'Ab dem' (oldest first)...")
-    sort_link_selector = 'a:has-text("Ab dem")'
-    try:
-        sort_link = page.locator(sort_link_selector)
-        # Click twice to sort ascending (oldest first)
-        logging.info("Clicking 'Ab dem' (1st time)...")
-        sort_link.click()
-        page.wait_for_load_state(
-            "domcontentloaded", timeout=20000
-        )  # Wait for potential reload
-        random_delay(1000, 2000)
-        take_screenshot(page, "04a_sorted_desc", log_dir=log_dir)
-
-        logging.info("Clicking 'Ab dem' (2nd time)...")
-        # Re-locate the element in case the page reloaded fully
-        page.locator(sort_link_selector).click()
-        page.wait_for_load_state("domcontentloaded", timeout=20000)  # Wait again
-        random_delay(1000, 2000)
-        take_screenshot(page, "04b_sorted_asc", log_dir=log_dir)
-        logging.info("Results sorted.")
-    except PlaywrightTimeoutError:
-        logging.error("Timeout waiting for sort link or page reload during sorting.")
-        take_screenshot(page, "error_sort_timeout", log_dir=log_dir)
-        # Decide if this is critical - maybe continue without sorting?
-        # raise # Uncomment to make sorting failure critical
-    except PlaywrightError as e:
-        logging.error(f"Playwright error during sorting: {e}")
-        take_screenshot(page, "error_sort_generic", log_dir=log_dir)
         # raise # Uncomment to make sorting failure critical
 
 
@@ -273,49 +244,123 @@ def scrape_results_pages(page, log_dir) -> list[Listing]:
     logging.info("Starting scraping results pages...")
     all_listings = []
     page_num = 1
+    total_pages = None  # Keep track of total pages discovered
 
     while True:
         logging.info(f"--- Processing Page {page_num} ---")
-        random_delay(1500, 3000)  # Spend some time on the page
+        # It's crucial to wait *before* getting content, especially on subsequent pages
+        # Let's add a more specific wait here if page_num > 1
+        if page_num > 1:
+            # Wait for the pagination indicator to show the *current* page number
+            expected_pagination_text = f"Seite {page_num}/"
+            pagination_selector = (
+                f'div.skip span.counter:has-text("{expected_pagination_text}")'
+            )
+            try:
+                logging.info(f"Waiting for pagination indicator for page {page_num}...")
+                page.wait_for_selector(
+                    pagination_selector, state="visible", timeout=30000
+                )
+                logging.info(f"Pagination indicator for page {page_num} confirmed.")
+                # Add a small buffer delay for content rendering after pagination update
+                random_delay(1000, 2500)
+            except PlaywrightTimeoutError:
+                logging.error(
+                    f"Timeout waiting for page {page_num} content/pagination update. Stopping pagination."
+                )
+                take_screenshot(page, f"error_page_load_timeout_p{page_num}", log_dir)
+                break  # Stop if the expected page doesn't seem to load
 
-        # Take screenshot of the current page
+        # Take screenshot *after* ensuring the page is hopefully correct
         take_screenshot(page, f"page_{page_num}", log_dir)
 
-        # Append HTML content to the list
+        # Get content *after* waiting/confirming
+        try:
+            html_content = page.content()
+            # Optional: Save HTML for debugging specific pages
+            # with open(os.path.join(log_dir, f"page_{page_num}_content.html"), "w") as f:
+            #     f.write(html_content)
+        except PlaywrightError as e:
+            logging.error(f"Failed to get page content for page {page_num}: {e}")
+            take_screenshot(page, f"error_get_content_p{page_num}", log_dir)
+            break  # Cannot proceed without content
 
-        html_content = page.content()
-        current_pages, total_pags, listings = parse_wgzimmer_search_results(
-            html_content=html_content
+        # Parse the confirmed content
+        current_page_parsed, total_pages_parsed, listings = (
+            parse_wgzimmer_search_results(html_content=html_content)
         )
-        all_listings.extend(listings)
 
-        if current_pages == total_pags:
+        # Update total_pages if discovered
+        if total_pages_parsed is not None:
+            total_pages = total_pages_parsed
+
+        # Sanity check: Does the parsed page number match our expected page number?
+        if current_page_parsed is not None and current_page_parsed != page_num:
+            logging.warning(
+                f"Parsed page number ({current_page_parsed}) does not match expected page number ({page_num}). Content might be stale."
+            )
+            # Decide how to handle: break, retry, or continue cautiously? Let's break for safety.
+            take_screenshot(page, f"warning_page_mismatch_p{page_num}", log_dir)
             break
 
-        # Using :near() might be fragile, prefer a more direct selector if possible
-        # Let's try a common pattern: a link with text "Next" or similar, often within pagination controls
+        if not listings and page_num > 1:
+            logging.warning(
+                f"No listings found on page {page_num}, content might be wrong or page empty."
+            )
+            # Optionally break here too if empty pages are unexpected after page 1
+
+        all_listings.extend(listings)  # Use extend, no need for .copy() here
+        logging.info(
+            f"Parsed results: current = {current_page_parsed}, total = {total_pages}, len(listings) = {len(listings)}"
+        )
+
+        # Check if we are on the last page (using the potentially updated total_pages)
+        if total_pages is not None and page_num >= total_pages:
+            logging.info(
+                f"Reached last page ({page_num}/{total_pages}) based on parser."
+            )
+            break
+        if (
+            current_page_parsed is not None
+            and total_pages_parsed is not None
+            and current_page_parsed >= total_pages_parsed
+        ):
+            logging.info(
+                f"Reached last page ({current_page_parsed}/{total_pages_parsed}) based on current parse."
+            )
+            break
+
+        # --- Find and Click Next ---
         next_button = page.locator(
             'a:has-text("Next"), a:has-text("Weiter"), a:has-text("Nächste")'
         ).first
-        # Alternative: Look for a link that might contain a specific class or structure
-        # next_button = page.locator('.pagination a.next') # Example if classes exist
 
         try:
-            is_disabled = next_button.is_disabled(
-                timeout=5000
-            )  # Check if disabled attribute exists
-            is_visible = next_button.is_visible()
-
-            if is_visible and not is_disabled:
+            # Check visibility first, then disabled state
+            is_visible = next_button.is_visible(timeout=5000)
+            if not is_visible:
                 logging.info(
-                    f"Found 'Next' button for page {page_num + 1}. Clicking..."
+                    f"'Next' button not visible on page {page_num}. Assuming end of results."
+                )
+                break
+
+            is_disabled = next_button.is_disabled(
+                timeout=1000
+            )  # Shorter timeout for disabled check
+
+            if not is_disabled:
+                logging.info(
+                    f"Found active 'Next' button on page {page_num}. Clicking for page {page_num + 1}..."
                 )
                 next_button.click()
-                # Wait for navigation/content update after clicking 'Next'
-                page.wait_for_load_state("domcontentloaded", timeout=30000)
-                page_num += 1
+                page_num += (
+                    1  # Increment page number *after* clicking for the next page
+                )
+                # The wait for the *new* page content will happen at the start of the next loop iteration
             else:
-                logging.info("No more 'Next' pages found or button is disabled.")
+                logging.info(
+                    f"'Next' button is disabled on page {page_num}. Assuming end of results."
+                )
                 break  # Exit the loop
 
         except PlaywrightTimeoutError:
@@ -325,15 +370,27 @@ def scrape_results_pages(page, log_dir) -> list[Listing]:
             take_screenshot(page, f"warning_next_button_timeout_p{page_num}", log_dir)
             break
         except PlaywrightError as e:
-            # This might happen if the locator doesn't find the element at all
             logging.info(
-                f"Could not find 'Next' button using selectors, assuming end of results. Error: {e}"
+                f"Could not find or interact with 'Next' button on page {page_num}, assuming end of results. Error: {e}"
             )
-            take_screenshot(page, f"info_next_button_not_found_p{page_num}", log_dir)
-            break  # Exit loop if element not found
+            take_screenshot(page, f"info_next_button_error_p{page_num}", log_dir)
+            break
 
-    logging.info(f"Finished scraping {len(all_listings)} pages.")
-    return all_listings
+    logging.info(f"Finished scraping. Total unique listings found: {len(all_listings)}")
+    # Optional: Add de-duplication just in case, based on URL
+    seen_urls = set()
+    unique_listings = []
+    for listing in all_listings:
+        if listing.url not in seen_urls:
+            unique_listings.append(listing)
+            if listing.url:
+                seen_urls.add(listing.url)
+    if len(unique_listings) != len(all_listings):
+        logging.warning(
+            f"De-duplicated listings: {len(all_listings)} -> {len(unique_listings)}"
+        )
+
+    return unique_listings  # Return unique list
 
 
 def fetch_listings(
@@ -372,7 +429,6 @@ def fetch_listings(
                 log_dir=log_dir,
             )
             submit_search_and_verify(page, log_dir)
-            sort_results(page, log_dir)  # Sort after successful submission
             listings = scrape_results_pages(page, log_dir)
             logging.info("Scraping process completed successfully.")
             take_screenshot(page, "99_final_page_state", log_dir)
@@ -384,24 +440,14 @@ def fetch_listings(
         logging.error(f"A timeout error occurred: {e}")
         if page:
             take_screenshot(page, "error_timeout_final", log_dir=log_dir)
+        raise e
     except PlaywrightError as e:
         logging.error(f"A Playwright error occurred: {e}")
         if page:
             take_screenshot(page, "error_playwright_final")
+        raise e
+    except CapthaError as e:
+        raise e
     except Exception as e:
-        logging.exception(
-            f"An unexpected error occurred: {e}"
-        )  # Use logging.exception to include traceback
-        if page:
-            take_screenshot(page, "error_unexpected_final")
-    finally:
-        if context:
-            try:
-                context.close()
-                logging.info("Context closed.")
-            except PlaywrightError as e:
-                logging.error(
-                    f"Playwright error saving context state or closing context: {e}"
-                )
-            except Exception as e:
-                logging.error(f"Could not save context state: {e}")
+        logging.exception(f"An unexpected error occurred: {e}")
+        raise e
