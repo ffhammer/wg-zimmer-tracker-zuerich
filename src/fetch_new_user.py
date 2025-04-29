@@ -145,9 +145,6 @@ if __name__ == "__main__":
     export_path = os.path.join(SAVE_DIR, datetime.now().isoformat() + ".jsonl")
     os.makedirs(SAVE_DIR, exist_ok=True)
 
-    with open(export_path, "w") as f:
-        f.write("test")
-        print("test")
     vals = asyncio.run(
         main(
             max_price=args.max_price,
