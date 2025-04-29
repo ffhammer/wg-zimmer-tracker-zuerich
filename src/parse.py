@@ -4,22 +4,8 @@ from typing import List, Tuple, Optional
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
-from pydantic import BaseModel, Field, HttpUrl, ValidationError
-
-
-# --- Pydantic Model Definition ---
-# (Assuming you have pydantic installed: pip install pydantic)
-class Listing(BaseModel):
-    aufgegeben_datum: Optional[datetime] = Field(
-        None, description="das datum wo das inserat aufgegeb wurde"
-    )
-    datum_ab_frei: Optional[datetime] = Field(
-        None, description="das datum ab dem das inserat frei ist"
-    )
-    miete: Optional[float] = Field(None, description="miete in schweizer franken")
-    adresse: Optional[str] = Field(None, description="einfach ganzer adress string")
-    url: Optional[HttpUrl] = Field(None, description="die url zu dem specifischen post")
-    img_url: Optional[HttpUrl] = Field(None, description="URL des Vorschaubildes")
+from pydantic import ValidationError
+from .models import ListingScraped
 
 
 # --- Helper Function for Safe Parsing ---
@@ -66,7 +52,7 @@ def parse_float(float_str: Optional[str]) -> Optional[float]:
 # --- Main Parsing Function ---
 def parse_wgzimmer_search_results(
     html_content: str, base_url: str = "https://www.wgzimmer.ch"
-) -> Tuple[Optional[int], Optional[int], List[Listing]]:
+) -> Tuple[Optional[int], Optional[int], List[ListingScraped]]:
     """
     Parses the HTML content of a wgzimmer.ch search results page.
 
@@ -83,7 +69,7 @@ def parse_wgzimmer_search_results(
     soup = BeautifulSoup(html_content, "html.parser")
     current_page: Optional[int] = None
     total_pages: Optional[int] = None
-    listings: List[Listing] = []
+    listings: List[ListingScraped] = []
 
     # 1. Parse Pagination
     # Find the pagination element (there might be two identical ones, top/bottom)
@@ -160,7 +146,7 @@ def parse_wgzimmer_search_results(
 
                 # --- Create Listing Object ---
                 try:
-                    listing = Listing(**listing_data)
+                    listing = ListingScraped(**listing_data)
                     listings.append(listing)
                 except ValidationError as e:
                     print(

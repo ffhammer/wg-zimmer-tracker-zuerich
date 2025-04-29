@@ -1,3 +1,4 @@
+from datetime import datetime
 import argparse
 import asyncio
 import os
@@ -20,6 +21,7 @@ import sys
 load_dotenv()
 
 LOG_FILE_PATH = "/app/app.log"  # Log file inside the container
+SAVE_DIR = "/app/listings"
 LOG_LEVEL = logging.INFO
 
 # --- Configure Logging to File ---
@@ -127,7 +129,6 @@ if __name__ == "__main__":
     logging.info("Entering main execution block.")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--export_path", type=str, required=True)
     parser.add_argument("--max_price", type=int, default=800)
     parser.add_argument("--region", type=str, default="zürich stadt")
     parser.add_argument(
@@ -141,8 +142,12 @@ if __name__ == "__main__":
 
     llm = ChatGoogleGenerativeAI(model=args.gemini_model)
 
-    os.makedirs(os.path.dirname(args.export_path), exist_ok=True)
+    export_path = os.path.join(SAVE_DIR, datetime.now().isoformat() + ".jsonl")
+    os.makedirs(SAVE_DIR, exist_ok=True)
 
+    with open(export_path, "w") as f:
+        f.write("test")
+        print("test")
     vals = asyncio.run(
         main(
             max_price=args.max_price,
@@ -160,7 +165,7 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"Failed to parse page {idx}: {e}")
 
-    with open(args.export_path, "w") as f:
+    with open(export_path, "w") as f:
         f.write("\n".join((i.model_dump_json() for i in listings)))
 
     logging.info(f"Successfully saved to {args.export_path}")

@@ -54,6 +54,7 @@ def start_terminal_process(
         "&&",
         "docker-compose",
         "run",
+        "--build",
         "--rm",  # Automatically remove the container on exit
         "--service-ports",  # Keep this if you need ports, otherwise remove
         SERVICE_NAME,
