@@ -4,6 +4,13 @@ from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 from typing import Literal
 
 
+class DataBaseUpdate(BaseModel):
+    n_new: int
+    n_deleted: int
+    n_updated: int
+    date: datetime
+
+
 class ListingScraped(BaseModel):
     model_config = ConfigDict(extra="ignore")
     aufgegeben_datum: Optional[datetime] = Field(
@@ -39,7 +46,7 @@ class ListingStored(ListingScraped):
         return str(self.url)
 
     # Hilfsmethode zum Aktualisieren aus einem neuen Scrape
-    def update_from_scraped(self, scraped: "ListingScraped"):
+    def update_from_scraped(self, scraped: "ListingScraped", dt: datetime):
         # Update fields that might change (though unlikely for WGZimmer)
         self.miete = scraped.miete
         self.adresse = scraped.adresse
@@ -47,5 +54,5 @@ class ListingStored(ListingScraped):
         self.aufgegeben_datum = scraped.aufgegeben_datum
         self.datum_ab_frei = scraped.datum_ab_frei
         # Update internal status
-        self.last_seen = datetime.now()
+        self.last_seen = dt
         self.status = "active"  # Mark as active again if it was deleted

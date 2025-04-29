@@ -5,7 +5,7 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
 from pydantic import ValidationError
-from .models import ListingScraped
+from models import ListingScraped
 
 
 # --- Helper Function for Safe Parsing ---

@@ -1,8 +1,5 @@
 import subprocess
-import sys
 import os
-import shlex
-from typing import Generator, Optional
 
 # --- Configuration ---
 # Assume this script is run from the same directory as docker-compose.yml
@@ -19,7 +16,7 @@ def start_terminal_process(
     max_price: int = 800,
     gemini_model: str = "gemini-2.5-flash-preview-04-17",
     nur_unbefristete: bool = False,
-) -> Generator[str, None, bool]:
+) -> None:
     """
     Runs the wgzimmer fetching container via docker-compose, yields logs live,
     and returns True if the success marker is found in logs and the container exits cleanly.
@@ -59,8 +56,6 @@ def start_terminal_process(
         "--service-ports",  # Keep this if you need ports, otherwise remove
         SERVICE_NAME,
         # Arguments for the entrypoint.sh -> fetch_new_user.py script
-        "--export_path",
-        container_export_path,
         "--max_price",
         str(max_price),
         "--gemini_model",
