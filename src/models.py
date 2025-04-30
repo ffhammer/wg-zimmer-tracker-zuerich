@@ -46,6 +46,8 @@ class ListingStored(ListingScraped):
     beschreibung: Optional[str] = None
     wir_suchen: Optional[str] = None
     wir_sind: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
     # Eindeutige ID für Streamlit-Keys etc. (kann einfach die URL sein)
     @property

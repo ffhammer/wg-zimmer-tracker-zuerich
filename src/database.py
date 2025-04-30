@@ -5,14 +5,12 @@ from tinydb import TinyDB, Query
 from tinydb.operations import set as tinyset  # Rename 'set' to avoid conflict
 from typing import List, Set, Optional, Tuple, Literal
 from models import ListingScraped, ListingStored, DataBaseUpdate
-import logging
+from logger import logger
 from pathlib import Path
 from pydantic import HttpUrl
 from tqdm import tqdm
 from fetch_listing_details import create_listing_stored
 
-
-logger = logging.getLogger(__name__)
 
 DB_FILE = os.path.join("db.json")
 DATA_DIR = Path("listings")
@@ -144,7 +142,7 @@ def update_listing_user_status(
 
 def update_database(path: Path, dt: datetime) -> DataBaseUpdate:
     assert path.exists(), f"file should exist: {path}"
-    logging.info(f"Starting to update {path}")
+    logger.info(f"Starting to update {path}")
     listings_unique = [
         ListingScraped.model_validate_json(i)
         for i in set(path.read_text().splitlines())

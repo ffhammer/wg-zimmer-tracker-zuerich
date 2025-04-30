@@ -15,7 +15,7 @@ from start_job import start_terminal_process
 st.set_page_config(layout="wide", page_title="WG Zimmer Tracker")
 
 logging.basicConfig()
-logging.getLogger().setLevel(logging.DEBUG)
+logging.getLogger("wg-zimmer.zc-fetch").setLevel(logging.DEBUG)
 
 # --- Helper Functions ---
 
