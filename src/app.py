@@ -235,8 +235,10 @@ if st.session_state.selected_id:
                 "ScatterplotLayer",
                 data=df,
                 get_position=["lon", "lat"],
-                get_radius=100,
-                pickable=False,
+                get_radius=50,
+                get_fill_color=[255, 0, 0, 200],
+                pickable=True,
+                auto_highlight=True,
             )
             view = pdk.ViewState(
                 latitude=detail.latitude, longitude=detail.longitude, zoom=13
