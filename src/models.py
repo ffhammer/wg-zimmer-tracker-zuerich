@@ -16,6 +16,8 @@ class DataBaseUpdate(BaseModel):
 class Journey(BaseModel):
     type: Literal["walk", "wait", "B", "T", "S", "IR", "IC", "EC"]
     length_min: int
+    latitude: Optional[float]
+    longitude: Optional[float]
 
     @property
     def emoji(self) -> str:

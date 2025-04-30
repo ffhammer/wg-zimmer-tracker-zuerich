@@ -18,30 +18,45 @@ def summarize_connection(conn: Dict[str, Any]) -> PublicTransportConnection:
     last_ts = conn["from"].get("departureTimestamp")
 
     for sec in conn["sections"]:
-        dep_ts = sec["departure"].get("departureTimestamp")
-        arr_ts = sec["arrival"].get("arrivalTimestamp")
+        dep = sec["departure"]
+        arr = sec["arrival"]
+        dep_ts, arr_ts = dep.get("departureTimestamp"), arr.get("arrivalTimestamp")
+        coord = dep["location"]["coordinate"]
+        lat, lon = coord["x"], coord["y"]
 
         if sec.get("journey"):
             if last_ts and dep_ts and dep_ts > last_ts:
                 journeys.append(
-                    Journey(type="wait", length_min=(dep_ts - last_ts) // 60)
+                    Journey(
+                        type="wait",
+                        length_min=(dep_ts - last_ts) // 60,
+                        latitude=lat,
+                        longitude=lon,
+                    )
                 )
             journeys.append(
                 Journey(
-                    type=sec["journey"]["category"], length_min=(arr_ts - dep_ts) // 60
+                    type=sec["journey"]["category"],
+                    length_min=(arr_ts - dep_ts) // 60,
+                    latitude=lat,
+                    longitude=lon,
                 )
             )
             last_ts = arr_ts
-
-        else:  # walk section
+        else:
             if dep_ts and arr_ts and arr_ts > dep_ts:
                 journeys.append(
-                    Journey(type="walk", length_min=(arr_ts - dep_ts) // 60)
+                    Journey(
+                        type="walk",
+                        length_min=(arr_ts - dep_ts) // 60,
+                        latitude=lat,
+                        longitude=lon,
+                    )
                 )
             last_ts = arr_ts or last_ts
 
     total_time_min = (
-        conn["to"].get("arrivalTimestamp") - conn["from"].get("departureTimestamp")
+        conn["to"]["arrivalTimestamp"] - conn["from"]["departureTimestamp"]
     ) // 60
     return PublicTransportConnection(total_time_min=total_time_min, journeys=journeys)
 
