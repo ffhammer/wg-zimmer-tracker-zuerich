@@ -80,23 +80,23 @@ def render_map(detail: ListingStored) -> None:
         )
 
     # Public transport route
-    # if detail.public_transport:
-    #     pts = [
-    #         (j.longitude, j.latitude)
-    #         for j in detail.public_transport.journeys
-    #         if j.longitude and j.latitude
-    #     ]
-    #     if len(pts) > 1:
-    #         layers.append(
-    #             pdk.Layer(
-    #                 "PathLayer",
-    #                 pd.DataFrame([{"path": pts}]),
-    #                 get_path="path",
-    #                 get_width=4,
-    #                 get_color=[255, 165, 0],
-    #                 dash_array=[10, 10],
-    #             )
-    #         )
+    if detail.public_transport:
+        pts = [
+            (j.longitude, j.latitude)
+            for j in detail.public_transport.journeys
+            if j.longitude and j.latitude
+        ]
+        if len(pts) > 1:
+            layers.append(
+                pdk.Layer(
+                    "PathLayer",
+                    pd.DataFrame([{"path": pts}]),
+                    get_path="path",
+                    get_width=4,
+                    get_color=[255, 165, 0],
+                    dash_array=[10, 10],
+                )
+            )
 
     view = pdk.ViewState(latitude=detail.latitude, longitude=detail.longitude, zoom=13)
     st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=view))

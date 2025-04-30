@@ -15,51 +15,48 @@ assert load_dotenv()
 
 
 def summarize_connection(conn: Dict[str, Any]) -> PublicTransportConnection:
-    journeys: List[Journey] = []
-    last_ts = conn["from"].get("departureTimestamp")
+    def _pdur(s: str) -> int:
+        d, hms = s.split("d")
+        h, m, sec = hms.split(":")
+        return (int(d) * 24 + int(h)) * 3600 + int(m) * 60 + int(sec)
 
-    for sec in conn["sections"]:
+    best = min(conn["connections"], key=lambda c: _pdur(c["duration"]))
+    secs = best["sections"]
+    journeys: list[Journey] = []
+    prev_ts = best["from"]["departureTimestamp"]
+
+    for sec in secs:
         dep = sec["departure"]
         arr = sec["arrival"]
-        dep_ts, arr_ts = dep.get("departureTimestamp"), arr.get("arrivalTimestamp")
-        coord = dep["location"]["coordinate"]
-        lat, lon = coord["x"], coord["y"]
-
-        if sec.get("journey"):
-            if last_ts and dep_ts and dep_ts > last_ts:
-                journeys.append(
-                    Journey(
-                        type="wait",
-                        length_min=(dep_ts - last_ts) // 60,
-                        latitude=lat,
-                        longitude=lon,
-                    )
-                )
+        d_ts, a_ts = dep["departureTimestamp"], arr["arrivalTimestamp"]
+        wait = d_ts - (prev_ts or d_ts)
+        if wait and wait > 60:
             journeys.append(
                 Journey(
-                    type=sec["journey"]["category"],
-                    length_min=(arr_ts - dep_ts) // 60,
-                    latitude=lat,
-                    longitude=lon,
+                    type="wait", length_min=wait // 60, latitude=None, longitude=None
                 )
             )
-            last_ts = arr_ts
-        else:
-            if dep_ts and arr_ts and arr_ts > dep_ts:
-                journeys.append(
-                    Journey(
-                        type="walk",
-                        length_min=(arr_ts - dep_ts) // 60,
-                        latitude=lat,
-                        longitude=lon,
-                    )
-                )
-            last_ts = arr_ts or last_ts
 
-    total_time_min = (
-        conn["to"]["arrivalTimestamp"] - conn["from"]["departureTimestamp"]
-    ) // 60
-    return PublicTransportConnection(total_time_min=total_time_min, journeys=journeys)
+        if sec.get("walk"):
+            dur = sec["walk"]["duration"] or (a_ts - d_ts)
+            lat = dep["location"]["coordinate"]["x"]
+            lon = dep["location"]["coordinate"]["y"]
+            journeys.append(
+                Journey(type="walk", length_min=dur // 60, latitude=lat, longitude=lon)
+            )
+        elif sec.get("journey"):
+            cat = sec["journey"]["category"]
+            mins = (a_ts - d_ts) // 60
+            lat = dep["location"]["coordinate"]["x"]
+            lon = dep["location"]["coordinate"]["y"]
+            journeys.append(
+                Journey(type=cat, length_min=mins, latitude=lat, longitude=lon)
+            )
+
+        prev_ts = a_ts
+
+    total_min = _pdur(best["duration"]) // 60
+    return PublicTransportConnection(total_time_min=total_min, journeys=journeys)
 
 
 def parse_duration(duration: str) -> int:
@@ -90,8 +87,7 @@ def fetch_journey(
         return None
 
     try:
-        best = min(data["connections"], key=lambda c: parse_duration(c["duration"]))
-        return summarize_connection(best)
+        return summarize_connection(data)
     except Exception as e:
         logger.error("Error parsing connection: %s", e)
         return None
