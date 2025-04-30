@@ -12,7 +12,6 @@ CONTAINER_LISTINGS_BASE_PATH = "/app/listings"
 
 
 def start_terminal_process(
-    export_filename: str,  # Just the filename (e.g., "output.jsonl")
     max_price: int = 800,
     gemini_model: str = "gemini-2.5-flash-preview-04-17",
     nur_unbefristete: bool = False,
@@ -41,8 +40,6 @@ def start_terminal_process(
                                    without indicating successful completion within the logs.
         FileNotFoundError: If docker-compose is not found.
     """
-    # Construct the container-internal export path
-    container_export_path = os.path.join(CONTAINER_LISTINGS_BASE_PATH, export_filename)
 
     # Construct the docker-compose command
     docker_cmd_list = [
