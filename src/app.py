@@ -31,7 +31,6 @@ st.set_page_config(layout="wide", page_title="WG Zimmer Tracker")
 def handle_status_update(url: str, field: str, value: bool):
     """Callback function to update status and rerun."""
     update_listing_user_status(url=url, field=field, value=value)
-    st.rerun()
 
 
 # --- Load Data ---
