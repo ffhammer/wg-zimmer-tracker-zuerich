@@ -1,11 +1,14 @@
 from logger import logger
-from models import ListingScraped, ListingStored
+from models import (
+    ListingScraped,
+    ListingStored,
+)
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
-from geopy.geocoders import OpenCage
 from dotenv import load_dotenv
 import os
+from routes import fetch_bike_time, fetch_journey
 
 assert load_dotenv()
 
@@ -122,5 +125,13 @@ def extract_atributes(listing, response):
     )
 
     listing.latitude, listing.longitude = fetch_location(listing)
+
+    if listing.latitude and listing.longitude:
+        listing.public_transport = fetch_journey(
+            from_lat=listing.latitude, from_lon=listing.longitude
+        )
+        listing.bike = fetch_bike_time(
+            from_lat=listing.latitude, from_lon=listing.longitude
+        )
 
     return listing

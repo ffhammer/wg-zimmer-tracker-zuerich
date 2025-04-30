@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field, HttpUrl, ConfigDict
-from typing import Literal
+from typing import Literal, List
 
 
 class DataBaseUpdate(BaseModel):
@@ -23,6 +23,46 @@ class ListingScraped(BaseModel):
     adresse: Optional[str] = Field(None, description="einfach ganzer adress string")
     url: Optional[HttpUrl] = Field(None, description="die url zu dem specifischen post")
     img_url: Optional[HttpUrl] = Field(None, description="URL des Vorschaubildes")
+
+
+class Journey(BaseModel):
+    type: Literal["walk", "wait", "B", "T", "S", "IR", "IC", "EC"]
+    length_min: int
+
+    @property
+    def emoji(self) -> str:
+        emoji_map = {
+            "walk": "🚶",
+            "wait": "⏳",
+            "B": "🚌",  # Bus
+            "T": "🚋",  # Tram
+            "S": "🚆",  # S-Bahn / Suburban train
+            "IR": "🚄",  # InterRegio
+            "IC": "🚅",  # InterCity
+            "EC": "🚅",  # EuroCity
+        }
+        return emoji_map.get(self.type, "❓")
+
+    def __repr__(self) -> str:
+        return f"{self.emoji} – {self.length_min} min"
+
+
+class PublicTransportConnection(BaseModel):
+    total_time_min: int
+    journeys: List[Journey]
+
+    def __repr__(self) -> str:
+        lines = [f"Total: {self.total_time_min} min"]
+        lines += [repr(j) for j in self.journeys]
+        return "\n".join(lines)
+
+
+class BikeConnection(BaseModel):
+    duration_min: float
+    dist_km: float
+
+    def __repr__(self) -> str:
+        return f"🚴 Bike: {self.dist_km:.1f} km in {self.duration_min:.0f} min"
 
 
 class ListingStored(ListingScraped):
@@ -49,6 +89,9 @@ class ListingStored(ListingScraped):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     img_urls: list = Field([])
+
+    public_transport: Optional[PublicTransportConnection] = None
+    bike: Optional[BikeConnection] = None
 
     # Eindeutige ID für Streamlit-Keys etc. (kann einfach die URL sein)
     @property
