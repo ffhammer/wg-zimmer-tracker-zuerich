@@ -8,6 +8,8 @@ from models import ListingScraped, ListingStored, DataBaseUpdate
 import logging
 from pathlib import Path
 from pydantic import HttpUrl
+from tqdm import tqdm
+from fetch_listing_details import create_listing_stored
 
 
 logger = logging.getLogger(__name__)
@@ -59,7 +61,7 @@ def upsert_listings(
     new_count = 0
     updated_count = 0
 
-    for scraped in scraped_listings:
+    for scraped in tqdm(scraped_listings, desc="Upserting"):
         if not scraped.url:
             logger.warning(f"Skipping listing due to missing URL: {scraped.adresse}")
             continue
@@ -78,11 +80,7 @@ def upsert_listings(
 
 def insert(now, scraped, url_str):
     try:
-        stored_listing = ListingStored(
-            **scraped.model_dump(exclude_none=True),
-            first_seen=now,
-            last_seen=now,
-        )
+        stored_listing = create_listing_stored(scraped, now)
         insert_data = stored_listing.model_dump()
         listings_table.insert(make_datetime_isonorm(insert_data))
         return True

@@ -40,6 +40,13 @@ class ListingStored(ListingScraped):
         description="Wann wurde das Listing zuletzt im Fetch gesehen?",
     )
 
+    region: Optional[str] = None
+    adresse: Optional[str] = None
+    ort: Optional[str] = None
+    beschreibung: Optional[str] = None
+    wir_suchen: Optional[str] = None
+    wir_sind: Optional[str] = None
+
     # Eindeutige ID für Streamlit-Keys etc. (kann einfach die URL sein)
     @property
     def id(self) -> str:
