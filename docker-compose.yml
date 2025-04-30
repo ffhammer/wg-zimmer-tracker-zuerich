@@ -6,7 +6,6 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - DISPLAY=${DISPLAY}
       - GOOGLE_APPLICATION_CREDENTIALS=/root/.config/gcloud/application_default_credentials.json
     volumes:
       - ./listings:/app/listings

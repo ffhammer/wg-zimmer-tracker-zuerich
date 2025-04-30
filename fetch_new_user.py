@@ -13,7 +13,7 @@ from browser_use import (
     BrowserContextConfig,
 )
 from langchain_google_genai import ChatGoogleGenerativeAI
-from parse import parse_wgzimmer_search_results
+from src.fetch_listing_lists.parse import parse_wgzimmer_search_results
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import sys

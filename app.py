@@ -6,14 +6,14 @@ import logging
 import pandas as pd
 import pydeck as pdk
 
-from database import (
+from src.database import (
     get_all_listings_stored,
     update_listing_user_status,
     check_for_new_data_and_update,
     get_last_update,
 )
-from models import ListingStored, DataBaseUpdate
-from start_job import start_terminal_process
+from src.models import ListingStored, DataBaseUpdate
+from src.fetch_listing_lists.start_job import start_terminal_process
 
 st.set_page_config(layout="wide", page_title="WG Zimmer Tracker")
 

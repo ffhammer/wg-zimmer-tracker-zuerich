@@ -6,8 +6,8 @@ from typing import Optional
 
 import os
 from dotenv import load_dotenv
-from models import PublicTransportConnection, Journey, BikeConnection
-from logger import logger
+from src.models import PublicTransportConnection, Journey, BikeConnection
+from src.logger import logger
 
 assert load_dotenv()
 

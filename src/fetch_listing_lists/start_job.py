@@ -3,9 +3,6 @@ import os
 
 # --- Configuration ---
 # Assume this script is run from the same directory as docker-compose.yml
-COMPOSE_PROJECT_DIR = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))
-)  # Or specify absolute path
 SERVICE_NAME = "app"
 # This is the base path *inside the container* where listings are mounted
 CONTAINER_LISTINGS_BASE_PATH = "/app/listings"
@@ -44,7 +41,7 @@ def start_terminal_process(
     # Construct the docker-compose command
     docker_cmd_list = [
         "cd",
-        COMPOSE_PROJECT_DIR,
+        os.getcwd(),
         "&&",
         "docker-compose",
         "run",
@@ -69,9 +66,7 @@ def start_terminal_process(
         "-e",
         f'tell application "Terminal" to do script "{' '.join(docker_cmd_list)}"',
     ]
-    _ = subprocess.Popen(
-        terminal_cmd_list, cwd=COMPOSE_PROJECT_DIR, start_new_session=True
-    )
+    _ = subprocess.Popen(terminal_cmd_list, cwd=os.getcwd(), start_new_session=True)
 
 
 if __name__ == "__main__":

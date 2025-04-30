@@ -4,12 +4,14 @@ from datetime import datetime
 from tinydb import TinyDB, Query
 from tinydb.operations import set as tinyset  # Rename 'set' to avoid conflict
 from typing import List, Set, Optional, Tuple, Literal
-from models import ListingScraped, ListingStored, DataBaseUpdate
-from logger import logger
+
+from src.fetch_listing_lists.ListingScraped import ListingScraped
+from src.models import ListingStored, DataBaseUpdate
+from src.logger import logger
 from pathlib import Path
 from pydantic import HttpUrl
 from tqdm import tqdm
-from fetch_listing_details import create_listing_stored
+from src.fetch_listing_details.fetch_listing_details import create_listing_stored
 
 
 DB_FILE = os.path.join("db.json")
