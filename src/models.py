@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Literal, Optional
+
 from pydantic import BaseModel, Field
-from typing import Literal, List
 
 from src.fetch_listing_lists.ListingScraped import ListingScraped
 

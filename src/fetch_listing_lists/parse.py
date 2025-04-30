@@ -1,10 +1,11 @@
 import re
 from datetime import datetime
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
 from pydantic import ValidationError
+
 from .ListingScraped import ListingScraped
 
 

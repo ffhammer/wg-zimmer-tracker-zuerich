@@ -1,7 +1,7 @@
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from datetime import datetime
 from typing import Optional
 
-from datetime import datetime
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class ListingScraped(BaseModel):

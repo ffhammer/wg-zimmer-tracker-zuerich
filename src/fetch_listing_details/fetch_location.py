@@ -1,11 +1,9 @@
-from src.logger import logger
-from src.models import ListingStored
-
+import os
 
 import requests
 
-
-import os
+from src.logger import logger
+from src.models import ListingStored
 
 
 def fetch_location(listing: ListingStored) -> tuple[None, None] | tuple[float, float]:

@@ -1,18 +1,19 @@
 # src/app.py
-import streamlit as st
-from datetime import datetime, date, time
+from datetime import date, datetime, time
 from typing import List, Optional
+
 import pandas as pd
 import pydeck as pdk
+import streamlit as st
 
 from src.database import (
-    get_all_listings_stored,
-    update_listing_user_status,
     check_for_new_data_and_update,
+    get_all_listings_stored,
     get_last_update,
+    update_listing_user_status,
 )
-from src.models import ListingStored, DataBaseUpdate
 from src.fetch_listing_lists.start_job import start_terminal_process
+from src.models import DataBaseUpdate, ListingStored
 
 st.set_page_config(layout="wide", page_title="WG Zimmer Tracker")
 
@@ -117,10 +118,10 @@ end_date_dt = datetime.combine(date_range[1], time.max) if len(date_range) > 1 e
 
 # Price Filter
 min_db_price = min(
-    [l.miete for l in all_listings if l.miete is not None] or [0]
+    [listing.miete for listing in all_listings if listing.miete is not None] or [0]
 )  # Handle empty or all None
 max_db_price = max(
-    [l.miete for l in all_listings if l.miete is not None] or [1000]
+    [listing.miete for listing in all_listings if listing.miete is not None] or [1000]
 )  # Handle empty or all None
 # Ensure max_db_price is at least a bit higher than min_db_price for the slider
 max_slider_limit = max(max_db_price, min_db_price + 100, 1000)
@@ -167,7 +168,11 @@ st.title("Verfügbare WG Zimmer")
 if st.session_state.selected_id:
     # grab the one listing
     detail = next(
-        (l for l in all_listings if l.id == st.session_state.selected_id),
+        (
+            listing
+            for listing in all_listings
+            if listing.id == st.session_state.selected_id
+        ),
         None,
     )
     if detail:
@@ -207,7 +212,6 @@ if st.session_state.selected_id:
                 ),  # Pass current url, field, and *new* value
             )
         with two:
-
             st.checkbox(
                 "Gemerkt",
                 value=detail.gemerkt,
@@ -226,7 +230,6 @@ if st.session_state.selected_id:
 
         # map at bottom
         if detail.latitude and detail.longitude:
-
             df = pd.DataFrame([{"lat": detail.latitude, "lon": detail.longitude}])
             layer = pdk.Layer(
                 "ScatterplotLayer",
@@ -251,27 +254,32 @@ filtered_listings = all_listings
 # Date Filter
 if start_date_dt and end_date_dt:
     filtered_listings = [
-        l
-        for l in filtered_listings
-        if l.datum_ab_frei and start_date_dt <= l.datum_ab_frei <= end_date_dt
+        listing
+        for listing in filtered_listings
+        if listing.datum_ab_frei
+        and start_date_dt <= listing.datum_ab_frei <= end_date_dt
     ]
 
 # Price Filter
 filtered_listings = [
-    l
-    for l in filtered_listings
-    if l.miete is not None and min_price <= l.miete <= max_price
+    listing
+    for listing in filtered_listings
+    if listing.miete is not None and min_price <= listing.miete <= max_price
 ]
 
 # User Status Filters
 if filter_not_seen:
-    filtered_listings = [l for l in filtered_listings if not l.gesehen]
+    filtered_listings = [
+        listing for listing in filtered_listings if not listing.gesehen
+    ]
 if filter_not_bookmarked:
     # This overrides the "only bookmarked" if both are checked
-    filtered_listings = [l for l in filtered_listings if not l.gemerkt]
+    filtered_listings = [
+        listing for listing in filtered_listings if not listing.gemerkt
+    ]
 elif filter_only_bookmarked:
     # Only apply if "not bookmarked" isn't checked
-    filtered_listings = [l for l in filtered_listings if l.gemerkt]
+    filtered_listings = [listing for listing in filtered_listings if listing.gemerkt]
 
 
 # Apply Sorting
@@ -312,14 +320,14 @@ elif sort_option == "Datum Aufgegeben (älteste zuerst)":
 map_df = pd.DataFrame(
     [
         {
-            "lat": l.latitude,
-            "lon": l.longitude,
-            "url": str(l.url),
-            "adresse": l.adresse or "",
-            "preis": l.miete,
+            "lat": listing.latitude,
+            "lon": listing.longitude,
+            "url": str(listing.url),
+            "adresse": listing.adresse or "",
+            "preis": listing.miete,
         }
-        for l in filtered_listings
-        if l.latitude is not None and l.longitude is not None
+        for listing in filtered_listings
+        if listing.latitude is not None and listing.longitude is not None
     ]
 )
 

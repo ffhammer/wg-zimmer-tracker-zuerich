@@ -1,18 +1,17 @@
 # database.py
 import os
 from datetime import datetime
-from tinydb import TinyDB, Query
-from tinydb.operations import set as tinyset  # Rename 'set' to avoid conflict
-from typing import List, Set, Optional, Tuple, Literal
-
-from src.fetch_listing_lists.ListingScraped import ListingScraped
-from src.models import ListingStored, DataBaseUpdate
-from src.logger import logger
 from pathlib import Path
-from pydantic import HttpUrl
-from tqdm import tqdm
-from src.fetch_listing_details.fetch_listing_details import batch_create_listing_stored
+from typing import List, Literal, Optional, Set, Tuple
 
+from pydantic import HttpUrl
+from tinydb import Query, TinyDB
+from tinydb.operations import set as tinyset  # Rename 'set' to avoid conflict
+
+from src.fetch_listing_details.fetch_listing_details import batch_create_listing_stored
+from src.fetch_listing_lists.ListingScraped import ListingScraped
+from src.logger import logger
+from src.models import DataBaseUpdate, ListingStored
 
 DB_FILE = os.path.join("db.json")
 DATA_DIR = Path("listings")
@@ -24,9 +23,7 @@ ListingQuery = Query()
 
 
 def make_datetime_isonorm(dic: dict) -> dict:
-
     for key, val in dic.items():
-
         if isinstance(val, datetime):
             dic[key] = val.isoformat()
         if isinstance(val, HttpUrl):
@@ -82,7 +79,6 @@ def upsert_listings(
 
 
 def insert(inputs: list[tuple[ListingScraped, datetime]]):
-
     try:
         res = batch_create_listing_stored(inputs=inputs)
         for listing in res:
@@ -173,7 +169,6 @@ def get_last_update() -> Optional[DataBaseUpdate]:
 
 
 def check_for_new_data_and_update() -> list[DataBaseUpdate]:
-
     dates = [
         datetime.fromisoformat(i.replace(".jsonl", "")) for i in os.listdir(DATA_DIR)
     ]

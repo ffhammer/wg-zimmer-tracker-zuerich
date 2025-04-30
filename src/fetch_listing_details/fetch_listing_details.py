@@ -1,17 +1,18 @@
+import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+
+import requests
+from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+
+from src.fetch_listing_details.commute_data import fetch_bike_connection, fetch_journey
+from src.fetch_listing_details.fetch_location import fetch_location
+from src.fetch_listing_lists.ListingScraped import ListingScraped
 from src.logger import logger
 from src.models import (
     ListingStored,
 )
-import requests
-from bs4 import BeautifulSoup
-from datetime import datetime
-from dotenv import load_dotenv
-from src.fetch_listing_details.commute_data import fetch_bike_connection, fetch_journey
-from src.fetch_listing_details.fetch_location import fetch_location
-from src.fetch_listing_lists.ListingScraped import ListingScraped
-from concurrent.futures import ThreadPoolExecutor
-import time
-from tqdm import tqdm
 
 assert load_dotenv()
 
@@ -53,7 +54,6 @@ def batch_create_listing_stored(
 
 
 def create_listing_stored(scraped: ListingScraped, now: datetime) -> ListingStored:
-
     listing = ListingStored(
         **scraped.model_dump(exclude_none=True),
         first_seen=now,
@@ -109,15 +109,13 @@ def extract_atributes(listing, response):
             tag["content"]
             for tag in soup.find_all("meta", {"property": "og:image"})
             if tag.get("content")
-        }
-        .union(
+        }.union(
             {
                 base_url + img["src"]
                 for img in soup.find_all("img")
                 if img.get("src") and img["src"].startswith("/docroot/img.wgzimmer.ch")
             }
-        )
-        .difference(("https://www.wgzimmer.ch/docroot/img.wgzimmer.ch/loading.gif",))
+        ).difference(("https://www.wgzimmer.ch/docroot/img.wgzimmer.ch/loading.gif",))
     )
 
     listing.latitude, listing.longitude = fetch_location(listing)

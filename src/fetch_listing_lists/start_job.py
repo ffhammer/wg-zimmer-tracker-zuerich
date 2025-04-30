@@ -1,5 +1,5 @@
-import subprocess
 import os
+import subprocess
 
 # --- Configuration ---
 # Assume this script is run from the same directory as docker-compose.yml
@@ -64,7 +64,7 @@ def start_terminal_process(
         "-e",
         'tell application "Terminal" to activate',
         "-e",
-        f'tell application "Terminal" to do script "{' '.join(docker_cmd_list)}"',
+        f'tell application "Terminal" to do script "{" ".join(docker_cmd_list)}"',
     ]
     _ = subprocess.Popen(terminal_cmd_list, cwd=os.getcwd(), start_new_session=True)
 

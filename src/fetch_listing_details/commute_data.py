@@ -1,14 +1,14 @@
-import re
-from typing import List, Dict, Any
-from datetime import datetime
-import requests
-from typing import Optional
-
 import os
-from dotenv import load_dotenv
-from src.models import PublicTransportConnection, Journey, BikeConnection
-from src.logger import logger
+import re
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 import polyline
+import requests
+from dotenv import load_dotenv
+
+from src.logger import logger
+from src.models import BikeConnection, Journey, PublicTransportConnection
 
 assert load_dotenv()
 
@@ -138,7 +138,6 @@ def fetch_bike_connection(
 
 
 if __name__ == "__main__":
-
     res = fetch_journey(47.396201, 8.52830)
     print("pub", res.__repr__() if res else "None")
 

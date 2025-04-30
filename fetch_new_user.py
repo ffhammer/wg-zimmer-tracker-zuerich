@@ -1,22 +1,24 @@
-from datetime import datetime
 import argparse
 import asyncio
-import os
 import logging
+import os
+import sys
+from datetime import datetime
 from typing import List
+
 from browser_use import (
-    Controller,
     ActionResult,
-    Browser,
     Agent,
+    Browser,
     BrowserConfig,
     BrowserContextConfig,
+    Controller,
 )
-from langchain_google_genai import ChatGoogleGenerativeAI
-from src.fetch_listing_lists.parse import parse_wgzimmer_search_results
-from pydantic import BaseModel
 from dotenv import load_dotenv
-import sys
+from langchain_google_genai import ChatGoogleGenerativeAI
+from pydantic import BaseModel
+
+from src.fetch_listing_lists.parse import parse_wgzimmer_search_results
 
 load_dotenv()
 
@@ -165,4 +167,4 @@ if __name__ == "__main__":
     with open(export_path, "w") as f:
         f.write("\n".join((i.model_dump_json() for i in listings)))
 
-    logging.info(f"\n\n{'-'*150}\nSuccessfully finished job!{'-'*150}\n\n")
+    logging.info(f"\n\n{'-' * 150}\nSuccessfully finished job!{'-' * 150}\n\n")
