@@ -7,6 +7,7 @@ import polyline
 import requests
 from dotenv import load_dotenv
 
+from src.eth_location import ETH_LOCATION
 from src.logger import logger
 from src.models import BikeConnection, Journey, PublicTransportConnection
 
@@ -75,7 +76,7 @@ def fetch_journey(
 
     url = (
         "https://transport.opendata.ch/v1/connections"
-        f"?from={from_lat},{from_lon}&to=47.3763,8.5476&date={date_str}&time={time_str}"
+        f"?from={from_lat},{from_lon}&to={ETH_LOCATION.latitutude},{ETH_LOCATION.longitude}&date={date_str}&time={time_str}"
     )
 
     resp = requests.get(url)
@@ -99,15 +100,18 @@ def fetch_journey(
 def fetch_bike_connection(
     from_lat: float,
     from_lon: float,
-    to_lat: float = 47.3763,
-    to_lon: float = 8.5476,
 ) -> Optional[BikeConnection]:
     url = "https://api.openrouteservice.org/v2/directions/cycling-regular"
     headers = {
         "Authorization": os.environ["OPENROUTESERVICE_API_KEY"],
         "Content-Type": "application/json",
     }
-    body = {"coordinates": [[from_lon, from_lat], [to_lon, to_lat]]}
+    body = {
+        "coordinates": [
+            [from_lon, from_lat],
+            [ETH_LOCATION.longitude, ETH_LOCATION.latitutude],
+        ]
+    }
     try:
         resp = requests.post(url, json=body, headers=headers, timeout=5)
         resp.raise_for_status()
