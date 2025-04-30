@@ -39,7 +39,7 @@ def batch_create_listing_stored(
                     executor.map(lambda args: create_listing_stored(*args), sec_batch)
                 )
             for lst in results:
-                outputs[lst.url] = lst
+                outputs[str(lst.url)] = lst
             # throttle to one second per sub-batch
             elapsed = time.time() - start
             if elapsed < 1.0:
@@ -49,7 +49,7 @@ def batch_create_listing_stored(
         if elapsed < 60.0:
             time.sleep(60.0 - elapsed)
     # preserve original order
-    return [outputs[url] for (scr, _), url in zip(inputs, (i.url for i in inputs))]
+    return [outputs[str(scr.url)] for scr, _ in inputs]
 
 
 def create_listing_stored(scraped: ListingScraped, now: datetime) -> ListingStored:
