@@ -12,6 +12,7 @@ from src.database import (
     get_last_update,
     update_listing_user_status,
 )
+from src.eth_location import ETH_LOCATION
 from src.fetch_listing_lists.start_job import start_terminal_process
 from src.models import DataBaseUpdate, ListingStored
 
@@ -34,6 +35,71 @@ def handle_status_update(url: str, field: str, value: bool):
 def select_listing(listing_id):
     st.session_state.selected_id = listing_id
     st.rerun()
+
+
+def render_map(detail: ListingStored) -> None:
+    layers: list[pdk.Layer] = []
+
+    # Listing location
+    layers.append(
+        pdk.Layer(
+            "ScatterplotLayer",
+            pd.DataFrame([{"lat": detail.latitude, "lon": detail.longitude}]),
+            get_position=["lon", "lat"],
+            get_radius=50,
+            get_fill_color=[255, 0, 0, 200],
+            pickable=True,
+        )
+    )
+
+    # ETH location
+    layers.append(
+        pdk.Layer(
+            "ScatterplotLayer",
+            pd.DataFrame(
+                [{"lat": ETH_LOCATION.latitutude, "lon": ETH_LOCATION.longitude}]
+            ),
+            get_position=["lon", "lat"],
+            get_radius=50,
+            get_fill_color=[0, 0, 255, 200],
+            pickable=True,
+        )
+    )
+
+    # Bike route
+    if detail.bike and detail.bike.waypoints:
+        bike_path = [[wp.longitude, wp.latitude] for wp in detail.bike.waypoints]
+        layers.append(
+            pdk.Layer(
+                "PathLayer",
+                pd.DataFrame([{"path": bike_path}]),
+                get_path="path",
+                get_width=4,
+                get_color=[0, 255, 0],
+            )
+        )
+
+    # Public transport route
+    # if detail.public_transport:
+    #     pts = [
+    #         (j.longitude, j.latitude)
+    #         for j in detail.public_transport.journeys
+    #         if j.longitude and j.latitude
+    #     ]
+    #     if len(pts) > 1:
+    #         layers.append(
+    #             pdk.Layer(
+    #                 "PathLayer",
+    #                 pd.DataFrame([{"path": pts}]),
+    #                 get_path="path",
+    #                 get_width=4,
+    #                 get_color=[255, 165, 0],
+    #                 dash_array=[10, 10],
+    #             )
+    #         )
+
+    view = pdk.ViewState(latitude=detail.latitude, longitude=detail.longitude, zoom=13)
+    st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=view))
 
 
 # --- Load Data ---
@@ -244,21 +310,8 @@ if st.session_state.selected_id:
                 st.markdown(detail.bike.__repr__())
 
         # map at bottom
-        if detail.latitude and detail.longitude:
-            df = pd.DataFrame([{"lat": detail.latitude, "lon": detail.longitude}])
-            layer = pdk.Layer(
-                "ScatterplotLayer",
-                data=df,
-                get_position=["lon", "lat"],
-                get_radius=50,
-                get_fill_color=[255, 0, 0, 200],
-                pickable=True,
-                auto_highlight=True,
-            )
-            view = pdk.ViewState(
-                latitude=detail.latitude, longitude=detail.longitude, zoom=13
-            )
-            st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view))
+        render_map(detail=detail)
+
     else:
         st.error("Listing nicht gefunden.")
     st.stop()
