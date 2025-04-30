@@ -3,6 +3,9 @@ import streamlit as st
 from datetime import datetime, date, time
 from typing import List, Optional
 import logging
+import pandas as pd
+import pydeck as pdk
+
 from database import (
     get_all_listings_stored,
     update_listing_user_status,
@@ -216,6 +219,43 @@ elif sort_option == "Datum Aufgegeben (neueste zuerst)":
 elif sort_option == "Datum Aufgegeben (älteste zuerst)":
     filtered_listings.sort(key=sort_key_date_aufgegeben)
 
+# --- Map Widget ---
+map_df = pd.DataFrame(
+    [
+        {
+            "lat": l.latitude,
+            "lon": l.longitude,
+            "url": str(l.url),
+            "adresse": l.adresse or "",
+        }
+        for l in filtered_listings
+        if l.latitude is not None and l.longitude is not None
+    ]
+)
+
+print(map_df)
+
+if not map_df.empty:
+    layer = pdk.Layer(
+        "ScatterplotLayer",
+        data=map_df,
+        get_position=["lon", "lat"],
+        get_radius=50,
+        pickable=True,
+        auto_highlight=True,
+    )
+    tooltip = {
+        "html": "<b>{adresse}</b><br/><a href='{url}' target='_blank'>Details öffnen</a>",
+        "style": {"backgroundColor": "rgba(0, 0, 0, 0.8)", "color": "white"},
+    }
+    view_state = pdk.ViewState(
+        latitude=map_df["lat"].mean(),
+        longitude=map_df["lon"].mean(),
+        zoom=11,
+    )
+    st.pydeck_chart(
+        pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip=tooltip)
+    )
 
 # Display Results
 st.subheader(f"{len(filtered_listings)} von {len(all_listings)} Listings angezeigt")
