@@ -228,6 +228,21 @@ if st.session_state.selected_id:
             if detail.url:
                 st.link_button("Öffnen auf wgzimmer.ch", url=str(detail.url))
 
+        one, two = st.columns(2)
+        with one:
+            if detail.public_transport:
+                st.markdown("**Öffis:**")
+                st.markdown(
+                    f"""```
+                {detail.public_transport.__repr__()}
+                """,
+                    unsafe_allow_html=True,
+                )
+        with two:
+            if detail.bike:
+                st.markdown("**Fahrrad:**")
+                st.markdown(detail.bike.__repr__())
+
         # map at bottom
         if detail.latitude and detail.longitude:
             df = pd.DataFrame([{"lat": detail.latitude, "lon": detail.longitude}])
