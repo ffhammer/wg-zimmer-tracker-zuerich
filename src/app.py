@@ -2,17 +2,7 @@
 import streamlit as st
 from datetime import datetime, date, time
 from typing import List, Optional
-import os
-
-# Assuming your script is run from the root directory containing 'src'
-# If not, adjust sys.path accordingly
-import sys
-
-# Add src to path to allow imports like 'from database import ...'
-# This assumes the script is run from the project root (where docker-compose.yml likely is)
-sys.path.append(os.path.join(os.path.dirname(__file__)))
-
-# Now import your modules
+import logging
 from database import (
     get_all_listings_stored,
     update_listing_user_status,
@@ -23,6 +13,9 @@ from models import ListingStored, DataBaseUpdate
 from start_job import start_terminal_process
 
 st.set_page_config(layout="wide", page_title="WG Zimmer Tracker")
+
+logging.basicConfig()
+logging.getLogger().setLevel(logging.DEBUG)
 
 # --- Helper Functions ---
 
@@ -270,15 +263,17 @@ else:
                     if listing.aufgegeben_datum
                     else "N/A"
                 )
-                st.markdown(f"**Miete:** {miete_str}")
-                st.markdown(f"**Frei ab:** {frei_ab_str}")
-                st.markdown(f"**Aufgegeben am:** {aufgegeben_str}")
 
-                if listing.url:
-                    st.link_button("Öffnen auf wgzimmer.ch", url=str(listing.url))
+                detail_col1, detail_col2, detail_col3, detail_col_4 = st.columns(4)
+                with detail_col1:
+                    st.markdown(f"**Miete:** {miete_str}")
+                with detail_col2:
+                    st.markdown(f"**Frei ab:** {frei_ab_str}")
+                with detail_col3:
+                    st.markdown(f"**Aufgegeben am:** {aufgegeben_str.strip()}")
 
                 # Status Toggles (Checkboxes for direct interaction)
-                action_col1, action_col2, _ = st.columns(
+                action_col1, action_col2, action_col3 = st.columns(
                     [1, 1, 2]
                 )  # Space out checkboxes
                 with action_col1:
@@ -305,5 +300,8 @@ else:
                             not listing.gemerkt,
                         ),  # Pass current url, field, and *new* value
                     )
+                with action_col3:
+                    if listing.url:
+                        st.link_button("Öffnen auf wgzimmer.ch", url=str(listing.url))
 
             st.divider()  # Separator between listings

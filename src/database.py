@@ -151,7 +151,7 @@ def update_database(path: Path, dt: datetime) -> DataBaseUpdate:
         ListingScraped.model_validate_json(i)
         for i in set(path.read_text().splitlines())
     ]
-    n_deleted = mark_listings_as_deleted({i.url for i in listings_unique})
+    n_deleted = mark_listings_as_deleted({str(i.url) for i in listings_unique})
     new_count, updated_count = upsert_listings(listings_unique, now=dt)
     status = DataBaseUpdate(
         n_new=new_count, n_deleted=n_deleted, n_updated=updated_count, date=dt
