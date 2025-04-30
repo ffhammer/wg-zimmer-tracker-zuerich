@@ -34,7 +34,6 @@ def handle_status_update(url: str, field: str, value: bool):
 
 def select_listing(listing_id):
     st.session_state.selected_id = listing_id
-    st.rerun()
 
 
 def render_map(detail: ListingStored) -> None:
@@ -247,6 +246,9 @@ if st.session_state.selected_id:
             on_click=lambda: st.session_state.update(selected_id=None),
         )
         st.header("Detailansicht")
+        if detail.img_url:
+            st.image(str(detail.img_url))
+
         st.markdown(f"**Region:** {detail.region or '–'}")
         st.markdown(f"**Adresse:** {detail.adresse or '–'}")
         st.markdown(f"**Ort:** {detail.ort or '–'}")
