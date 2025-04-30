@@ -17,6 +17,10 @@ from start_job import start_terminal_process
 
 st.set_page_config(layout="wide", page_title="WG Zimmer Tracker")
 
+# Session state to track “which listing” is in detail mode
+if "selected_id" not in st.session_state:
+    st.session_state.selected_id = None
+
 logging.basicConfig()
 logging.getLogger("wg-zimmer.zc-fetch").setLevel(logging.DEBUG)
 
@@ -27,6 +31,11 @@ logging.getLogger("wg-zimmer.zc-fetch").setLevel(logging.DEBUG)
 def handle_status_update(url: str, field: str, value: bool):
     """Callback function to update status and rerun."""
     update_listing_user_status(url=url, field=field, value=value)
+
+
+def select_listing(listing_id):
+    st.session_state.selected_id = listing_id
+    st.rerun()
 
 
 # --- Load Data ---
@@ -156,6 +165,71 @@ sort_option = st.sidebar.selectbox(
 # --- Main Area ---
 st.title("Verfügbare WG Zimmer")
 
+
+# If a listing is selected, show detail view and bail out
+if st.session_state.selected_id:
+    # grab the one listing
+    detail = next(
+        (l for l in all_listings if l.id == st.session_state.selected_id),
+        None,
+    )
+    if detail:
+        st.button(
+            "← Zurück zur Liste",
+            on_click=lambda: st.session_state.update(selected_id=None),
+        )
+        st.header("Detailansicht")
+        st.markdown(f"**Region:** {detail.region or '–'}")
+        st.markdown(f"**Adresse:** {detail.adresse or '–'}")
+        st.markdown(f"**Ort:** {detail.ort or '–'}")
+        st.markdown("**Beschreibung:**")
+        st.markdown(f"{detail.beschreibung or '–'}")
+        st.markdown("**Wir suchen:**")
+        st.markdown(f"{detail.wir_suchen or '–'}")
+        st.markdown("**Wir sind:**")
+        st.markdown(f"{detail.wir_sind or '–'}")
+        # status flags
+        st.checkbox(
+            "Gesehen",
+            value=detail.gesehen,
+            key=f"gesehen_{detail.id}",  # Unique key is crucial
+            on_change=handle_status_update,
+            args=(
+                detail.id,
+                "gesehen",
+                not detail.gesehen,
+            ),  # Pass current url, field, and *new* value
+        )
+        st.checkbox(
+            "Gemerkt",
+            value=detail.gemerkt,
+            key=f"gemerkt_{detail.id}",  # Unique key
+            on_change=handle_status_update,
+            args=(
+                detail.id,
+                "gemerkt",
+                not detail.gemerkt,
+            ),  # Pass current url, field, and *new* value
+        )
+        # map at bottom
+        if detail.latitude and detail.longitude:
+
+            df = pd.DataFrame([{"lat": detail.latitude, "lon": detail.longitude}])
+            layer = pdk.Layer(
+                "ScatterplotLayer",
+                data=df,
+                get_position=["lon", "lat"],
+                get_radius=100,
+                pickable=False,
+            )
+            view = pdk.ViewState(
+                latitude=detail.latitude, longitude=detail.longitude, zoom=13
+            )
+            st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view))
+    else:
+        st.error("Listing nicht gefunden.")
+    st.stop()
+
 # Apply Filters
 filtered_listings = all_listings
 
@@ -227,13 +301,12 @@ map_df = pd.DataFrame(
             "lon": l.longitude,
             "url": str(l.url),
             "adresse": l.adresse or "",
+            "preis": l.miete,
         }
         for l in filtered_listings
         if l.latitude is not None and l.longitude is not None
     ]
 )
-
-print(map_df)
 
 if not map_df.empty:
     layer = pdk.Layer(
@@ -241,11 +314,12 @@ if not map_df.empty:
         data=map_df,
         get_position=["lon", "lat"],
         get_radius=50,
+        get_fill_color=[255, 0, 0, 200],
         pickable=True,
         auto_highlight=True,
     )
     tooltip = {
-        "html": "<b>{adresse}</b><br/><a href='{url}' target='_blank'>Details öffnen</a>",
+        "html": "<b>{adresse}</b><br/><b>{preis}</b>",
         "style": {"backgroundColor": "rgba(0, 0, 0, 0.8)", "color": "white"},
     }
     view_state = pdk.ViewState(
@@ -341,7 +415,10 @@ else:
                         ),  # Pass current url, field, and *new* value
                     )
                 with action_col3:
-                    if listing.url:
-                        st.link_button("Öffnen auf wgzimmer.ch", url=str(listing.url))
-
+                    st.button(
+                        "Details",
+                        key=f"detail_{listing.id}",
+                        on_click=select_listing,
+                        args=(listing.id,),
+                    )
             st.divider()  # Separator between listings

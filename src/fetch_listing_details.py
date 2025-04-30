@@ -11,29 +11,46 @@ assert load_dotenv()
 
 
 def fetch_location(listing: ListingStored) -> tuple[None, None] | tuple[float, float]:
-    """Return lat, lon in corret else None, None and logs error"""
+    """Return (lat, lon) if correct else (None, None) and logs error"""
     ordered_atrs = [listing.adresse, listing.ort, listing.region]
     if not all(ordered_atrs):
         return None, None
 
     address = ", ".join(ordered_atrs + ["Switzerland"])
+    api_key = os.environ.get("LOCATIONIQ_API_KEY")
+    if not api_key:
+        logger.error("LOCATIONIQ_API_KEY not set in environment")
+        return None, None
+
+    params = {
+        "key": api_key,
+        "q": address,
+        "format": "json",
+        "limit": 1,
+    }
 
     try:
-        geolocator = OpenCage(os.environ["OPEN_CAGE_API_KEY"])
-        loc = geolocator.geocode(address, timeout=2.0)
-        if loc is None:
+        resp = requests.get(
+            "https://us1.locationiq.com/v1/search.php", params=params, timeout=5
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data:
             logger.error(
-                f"Could not fetch location for '{address}' with url '{listing.url}'"
+                f"No results from LocationIQ for '{address}' (url: {listing.url})"
             )
             return None, None
-        logger.debug(f"Succesfully fetched location for {address}")
-        return loc.latitude, loc.longitude
+
+        lat = float(data[0]["lat"])
+        lon = float(data[0]["lon"])
+        logger.debug(f"Successfully fetched location for '{address}': ({lat}, {lon})")
+        return lat, lon
+
     except Exception as e:
         logger.error(
             f"Could not fetch location for '{address}'. error: {e}. url '{listing.url}'"
         )
-
-    return None, None
+        return None, None
 
 
 def create_listing_stored(scraped: ListingStored, now: datetime) -> ListingScraped:
