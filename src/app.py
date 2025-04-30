@@ -89,7 +89,7 @@ if last_db_update_info:
             else "N/A"
         ),
     )
-    col1, col2, col3 = st.sidebar.columns(3)
+    col1, col2, col3 = st.columns(3)
     col1.metric("Neu", last_db_update_info.n_new)
     col2.metric("Aktualisiert", last_db_update_info.n_updated)
     col3.metric("Gelöscht", last_db_update_info.n_deleted)
@@ -189,28 +189,44 @@ if st.session_state.selected_id:
         st.markdown("**Wir sind:**")
         st.markdown(f"{detail.wir_sind or '–'}")
         # status flags
-        st.checkbox(
-            "Gesehen",
-            value=detail.gesehen,
-            key=f"gesehen_{detail.id}",  # Unique key is crucial
-            on_change=handle_status_update,
-            args=(
-                detail.id,
-                "gesehen",
-                not detail.gesehen,
-            ),  # Pass current url, field, and *new* value
-        )
-        st.checkbox(
-            "Gemerkt",
-            value=detail.gemerkt,
-            key=f"gemerkt_{detail.id}",  # Unique key
-            on_change=handle_status_update,
-            args=(
-                detail.id,
-                "gemerkt",
-                not detail.gemerkt,
-            ),  # Pass current url, field, and *new* value
-        )
+
+        if detail.img_urls:
+            cols = st.columns(3)
+            for i, url in enumerate(detail.img_urls):
+                with cols[i % 3]:
+                    st.image(url, use_container_width=True)
+
+        one, two, three = st.columns(3)
+        with one:
+            st.checkbox(
+                "Gesehen",
+                value=detail.gesehen,
+                key=f"gesehen_{detail.id}",  # Unique key is crucial
+                on_change=handle_status_update,
+                args=(
+                    detail.id,
+                    "gesehen",
+                    not detail.gesehen,
+                ),  # Pass current url, field, and *new* value
+            )
+        with two:
+
+            st.checkbox(
+                "Gemerkt",
+                value=detail.gemerkt,
+                key=f"gemerkt_{detail.id}",  # Unique key
+                on_change=handle_status_update,
+                args=(
+                    detail.id,
+                    "gemerkt",
+                    not detail.gemerkt,
+                ),  # Pass current url, field, and *new* value
+            )
+
+        with three:
+            if detail.url:
+                st.link_button("Öffnen auf wgzimmer.ch", url=str(detail.url))
+
         # map at bottom
         if detail.latitude and detail.longitude:
 

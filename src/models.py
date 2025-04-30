@@ -48,6 +48,7 @@ class ListingStored(ListingScraped):
     wir_sind: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    img_urls: list = Field([])
 
     # Eindeutige ID für Streamlit-Keys etc. (kann einfach die URL sein)
     @property

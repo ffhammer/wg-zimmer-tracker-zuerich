@@ -104,6 +104,23 @@ def extract_atributes(listing, response):
     listing.wir_suchen = extract_simple_value("div.room-content > p")
     listing.wir_sind = extract_simple_value("div.person-content > p")
 
+    base_url = "https://www.wgzimmer.ch"
+    listing.img_urls = list(
+        {
+            tag["content"]
+            for tag in soup.find_all("meta", {"property": "og:image"})
+            if tag.get("content")
+        }
+        .union(
+            {
+                base_url + img["src"]
+                for img in soup.find_all("img")
+                if img.get("src") and img["src"].startswith("/docroot/img.wgzimmer.ch")
+            }
+        )
+        .difference(("https://www.wgzimmer.ch/docroot/img.wgzimmer.ch/loading.gif",))
+    )
+
     listing.latitude, listing.longitude = fetch_location(listing)
 
     return listing
