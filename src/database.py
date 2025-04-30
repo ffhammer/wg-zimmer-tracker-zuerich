@@ -58,7 +58,6 @@ def upsert_listings(
     Returns:
         Tuple[int, int]: Anzahl neuer Listings, Anzahl aktualisierter Listings.
     """
-    new_count = 0
     updated_count = 0
 
     insert_args = []
@@ -76,9 +75,8 @@ def upsert_listings(
 
         else:
             insert_args.append((scraped, now))
-            new_count += 1
 
-    insert(insert_args)
+    new_count = insert(insert_args)
 
     return new_count, updated_count
 
@@ -86,9 +84,10 @@ def upsert_listings(
 def insert(inputs: list[tuple[ListingScraped, datetime]]):
 
     try:
-        for listing in batch_create_listing_stored(inputs=inputs):
+        res = batch_create_listing_stored(inputs=inputs)
+        for listing in res:
             listings_table.insert(make_datetime_isonorm(listing.model_dump()))
-
+        return len(res)
     except Exception as e:
         logger.error(f"Error inserting new listing failed: {e}.")
 
