@@ -165,4 +165,4 @@ if __name__ == "__main__":
     with open(export_path, "w") as f:
         f.write("\n".join((i.model_dump_json() for i in listings)))
 
-    logging.info(f"Successfully saved to {args.export_path}")
+    logging.info("Successfully saved finished job!")
