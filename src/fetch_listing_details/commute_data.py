@@ -8,6 +8,7 @@ import os
 from dotenv import load_dotenv
 from src.models import PublicTransportConnection, Journey, BikeConnection
 from src.logger import logger
+import polyline
 
 assert load_dotenv()
 
@@ -80,7 +81,7 @@ def fetch_journey(
         return None
 
 
-def fetch_bike_time(
+def fetch_bike_connection(
     from_lat: float,
     from_lon: float,
     to_lat: float = 47.3763,
@@ -100,7 +101,20 @@ def fetch_bike_time(
         best = min(routes, key=lambda r: r["summary"]["duration"])
         dist_km = best["summary"]["distance"] / 1000
         time_min = best["summary"]["duration"] / 60
-        return BikeConnection(duration_min=time_min, dist_km=dist_km)
+
+        coords: List[tuple[float, float]] = polyline.decode(best["geometry"])
+
+        # extract each step’s slice of coords
+        waypoints: List = []
+        for seg in best["segments"]:
+            for step in seg["steps"]:
+                start, end = step["way_points"]
+
+                for lat, lon in coords[start : end + 1 : 2]:
+                    waypoints.append({"latitude": lat, "longitude": lon})
+        return BikeConnection(
+            duration_min=time_min, dist_km=dist_km, waypoints=waypoints
+        )
     except requests.RequestException as e:
         logger.error("Bike request failed: %s", e)
     except (KeyError, IndexError) as e:
@@ -113,5 +127,5 @@ if __name__ == "__main__":
     res = fetch_journey(47.396201, 8.52830)
     print("pub", res.__repr__() if res else "None")
 
-    res = fetch_bike_time(47.396201, 8.52830)
+    res = fetch_bike_connection(47.396201, 8.52830)
     print("bike", res.__repr__() if res else "None")

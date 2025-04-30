@@ -6,7 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from dotenv import load_dotenv
-from src.fetch_listing_details.commute_data import fetch_bike_time, fetch_journey
+from commute_data import fetch_bike_connection, fetch_journey
 from src.fetch_listing_details.fetch_location import fetch_location
 from src.fetch_listing_lists.ListingScraped import ListingScraped
 
@@ -87,7 +87,7 @@ def extract_atributes(listing, response):
         listing.public_transport = fetch_journey(
             from_lat=listing.latitude, from_lon=listing.longitude
         )
-        listing.bike = fetch_bike_time(
+        listing.bike = fetch_bike_connection(
             from_lat=listing.latitude, from_lon=listing.longitude
         )
 

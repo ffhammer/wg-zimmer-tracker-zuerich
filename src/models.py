@@ -45,9 +45,16 @@ class PublicTransportConnection(BaseModel):
         return "\n".join(lines)
 
 
+class Waypoint(BaseModel):
+    latitude: float
+    longitude: float
+
+
 class BikeConnection(BaseModel):
     duration_min: float
     dist_km: float
+
+    waypoints: list[Waypoint]
 
     def __repr__(self) -> str:
         return f"🚴 Bike: {self.dist_km:.1f} km in {self.duration_min:.0f} min"
