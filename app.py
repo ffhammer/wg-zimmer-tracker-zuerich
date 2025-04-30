@@ -2,7 +2,6 @@
 import streamlit as st
 from datetime import datetime, date, time
 from typing import List, Optional
-import logging
 import pandas as pd
 import pydeck as pdk
 
@@ -21,8 +20,6 @@ st.set_page_config(layout="wide", page_title="WG Zimmer Tracker")
 if "selected_id" not in st.session_state:
     st.session_state.selected_id = None
 
-logging.basicConfig()
-logging.getLogger("wg-zimmer.zc-fetch").setLevel(logging.DEBUG)
 
 # --- Helper Functions ---
 

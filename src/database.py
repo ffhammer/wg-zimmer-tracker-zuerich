@@ -11,7 +11,7 @@ from src.logger import logger
 from pathlib import Path
 from pydantic import HttpUrl
 from tqdm import tqdm
-from src.fetch_listing_details.fetch_listing_details import create_listing_stored
+from src.fetch_listing_details.fetch_listing_details import batch_create_listing_stored
 
 
 DB_FILE = os.path.join("db.json")
@@ -61,7 +61,9 @@ def upsert_listings(
     new_count = 0
     updated_count = 0
 
-    for scraped in tqdm(scraped_listings, desc="Upserting"):
+    insert_args = []
+
+    for scraped in scraped_listings:
         if not scraped.url:
             logger.warning(f"Skipping listing due to missing URL: {scraped.adresse}")
             continue
@@ -73,19 +75,22 @@ def upsert_listings(
             updated_count += update(scraped, url_str, existing_doc, now)
 
         else:
-            new_count += insert(now, scraped, url_str)
+            insert_args.append((scraped, now))
+            new_count += 1
+
+    insert(insert_args)
 
     return new_count, updated_count
 
 
-def insert(now, scraped, url_str):
+def insert(inputs: list[tuple[ListingScraped, datetime]]):
+
     try:
-        stored_listing = create_listing_stored(scraped, now)
-        insert_data = stored_listing.model_dump()
-        listings_table.insert(make_datetime_isonorm(insert_data))
-        return True
+        for listing in batch_create_listing_stored(inputs=inputs):
+            listings_table.insert(make_datetime_isonorm(listing.model_dump()))
+
     except Exception as e:
-        logger.error(f"Error inserting new listing {url_str}: {e}.")
+        logger.error(f"Error inserting new listing failed: {e}.")
 
     return False
 

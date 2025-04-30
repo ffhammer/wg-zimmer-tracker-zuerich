@@ -6,14 +6,53 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from dotenv import load_dotenv
-from commute_data import fetch_bike_connection, fetch_journey
+from src.fetch_listing_details.commute_data import fetch_bike_connection, fetch_journey
 from src.fetch_listing_details.fetch_location import fetch_location
 from src.fetch_listing_lists.ListingScraped import ListingScraped
+from concurrent.futures import ThreadPoolExecutor
+import time
+from tqdm import tqdm
 
 assert load_dotenv()
 
 
-def create_listing_stored(scraped: ListingStored, now: datetime) -> ListingScraped:
+def chunked(lst: list, n: int) -> list[list]:
+    return [lst[i : i + n] for i in range(0, len(lst), n)]
+
+
+def batch_create_listing_stored(
+    inputs: list[tuple[ListingScraped, datetime]],
+    max_requests_per_minute: int = 40,
+    max_requests_per_second: int = 2,
+) -> list[ListingStored]:
+    outputs: dict[str, ListingStored] = {}
+
+    # split into minute-batches
+    for minute_batch in chunked(inputs, max_requests_per_minute):
+        # split each minute into second-batches
+        minute_start = time.time()
+
+        for sec_batch in chunked(minute_batch, max_requests_per_second):
+            start = time.time()
+            with ThreadPoolExecutor(max_workers=len(sec_batch)) as executor:
+                results = list(
+                    executor.map(lambda args: create_listing_stored(*args), sec_batch)
+                )
+            for lst in results:
+                outputs[lst.url] = lst
+            # throttle to one second per sub-batch
+            elapsed = time.time() - start
+            if elapsed < 1.0:
+                time.sleep(1.0 - elapsed)
+
+        elapsed = time.time() - minute_start
+        if elapsed < 60.0:
+            time.sleep(60.0 - elapsed)
+    # preserve original order
+    return [outputs[url] for (scr, _), url in zip(inputs, (i.url for i in inputs))]
+
+
+def create_listing_stored(scraped: ListingScraped, now: datetime) -> ListingStored:
 
     listing = ListingStored(
         **scraped.model_dump(exclude_none=True),

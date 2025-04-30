@@ -1,4 +1,4 @@
-import logging
+from loguru import logger as _logger
 
-logger = logging.getLogger("wg-zimmer.zc-fetch")
-logger.setLevel(logging.DEBUG)
+_logger.level("DEBUG")
+logger = _logger
