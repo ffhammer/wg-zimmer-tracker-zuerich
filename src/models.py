@@ -1,9 +1,16 @@
 from datetime import datetime
-from typing import List, Literal, Optional
+from enum import StrEnum
+from typing import ClassVar, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field, HttpUrl
 
-from src.fetch_listing_lists.ListingScraped import ListingScraped
+from src.wg_zimmer_ch.fetch_lists.ListingScraped import ListingScraped
+
+
+class Webiste(StrEnum):
+    wg_zimmer_ch = "wg-zimmer.ch"
+    woko = "woko.ch"
+    students_ch = "students.ch"
 
 
 class DataBaseUpdate(BaseModel):
@@ -62,7 +69,41 @@ class BikeConnection(BaseModel):
         return f"🚴 Bike: {self.dist_km:.1f} km in {self.duration_min:.0f} min"
 
 
-class ListingStored(ListingScraped):
+class BaseListing(ListingScraped):
+    _additional_fields: ClassVar[list[str]]
+    website: ClassVar[Webiste]
+
+    url: Optional[HttpUrl] = Field(None, description="die url zu dem specifischen post")
+
+    aufgegeben_datum: Optional[datetime] = Field(
+        None, description="das datum wo das inserat aufgegeb wurde"
+    )
+    datum_ab_frei: Optional[datetime] = Field(
+        None, description="das datum ab dem das inserat frei ist"
+    )
+    datum_frei_bis: Optional[datetime | str] = None
+    miete: Optional[float] = Field(None, description="miete in schweizer franken")
+    größe_in_m2: Optional[float] = None
+    profile_img_url: Optional[HttpUrl] = Field(
+        None, description="URL des Vorschaubildes"
+    )
+    contact_mail: Optional[EmailStr] = None
+    beschreibung: Optional[str] = None
+    img_urls: list = Field([])
+
+    # Ortungs spezifisch
+    adresse: Optional[str] = Field(None, description="einfach ganzer adress string")
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    straße_und_hausnummer: Optional[str] = None
+    plz_und_stadt: Optional[str] = None
+    region: Optional[str] = "Zürich (Stadt)"
+
+    # hinweg
+    public_transport: Optional[PublicTransportConnection] = None
+    bike: Optional[BikeConnection] = None
+
+    # specific for our application
     gesehen: bool = Field(default=False, description="Vom User als gesehen markiert")
     gemerkt: bool = Field(default=False, description="Vom User gemerkt")
     status: Literal["active", "deleted"] = Field(
@@ -70,39 +111,48 @@ class ListingStored(ListingScraped):
     )
     first_seen: datetime = Field(
         default_factory=datetime.now,
-        description="Wann wurde das Listing zum ersten Mal gesehen?",
+        description="Wann wurde das Listing zum ersten Mal gesehen? -> db intern",
     )
     last_seen: datetime = Field(
         default_factory=datetime.now,
-        description="Wann wurde das Listing zuletzt im Fetch gesehen?",
+        description="Wann wurde das Listing zuletzt im Fetch gesehen? -> db intern",
     )
 
-    region: Optional[str] = None
-    adresse: Optional[str] = None
-    ort: Optional[str] = None
-    beschreibung: Optional[str] = None
-    wir_suchen: Optional[str] = None
-    wir_sind: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    img_urls: list = Field([])
-
-    public_transport: Optional[PublicTransportConnection] = None
-    bike: Optional[BikeConnection] = None
-
-    # Eindeutige ID für Streamlit-Keys etc. (kann einfach die URL sein)
     @property
     def id(self) -> str:
         return str(self.url)
 
-    # Hilfsmethode zum Aktualisieren aus einem neuen Scrape
-    def update_from_scraped(self, scraped: "ListingScraped", dt: datetime):
-        # Update fields that might change (though unlikely for WGZimmer)
+    def update(self, scraped: "BaseListing", dt: datetime) -> None:
         self.miete = scraped.miete
-        self.adresse = scraped.adresse
-        self.img_url = scraped.img_url
         self.aufgegeben_datum = scraped.aufgegeben_datum
         self.datum_ab_frei = scraped.datum_ab_frei
-        # Update internal status
+        self.last_seen = dt
+        self.status = "active"  # Mark as active again if it was deleted
+
+
+class StudentsCHListing(BaseListing):
+    # empty child class
+    _additional_fields: ClassVar[list[str]] = []
+    website: ClassVar[Webiste] = Webiste.students_ch
+
+
+class WokoListing(BaseListing):
+    _additional_fields: ClassVar[list[str]] = []
+    website: ClassVar[Webiste] = Webiste.woko
+
+
+class WGZimmerCHListing(BaseListing):
+    _additional_fields: ClassVar[list[str]] = ["wir_suchen", "wir_sind"]
+    website: ClassVar[Webiste] = Webiste.wg_zimmer_ch
+
+    wir_suchen: Optional[str] = None
+    wir_sind: Optional[str] = None
+
+    def update(self, scraped: ListingScraped, dt: datetime):
+        """Momentatn is LisingsScraped seperat"""
+        # Update fields that might change (though unlikely for WGZimmer)
+        self.miete = scraped.miete
+        self.aufgegeben_datum = scraped.aufgegeben_datum
+        self.datum_ab_frei = scraped.datum_ab_frei
         self.last_seen = dt
         self.status = "active"  # Mark as active again if it was deleted
