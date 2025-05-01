@@ -50,7 +50,7 @@ def fetch_bike_connection(
             duration_min=time_min, dist_km=dist_km, waypoints=waypoints
         )
     except requests.RequestException as e:
-        logger.error("Bike request failed: %s", e)
+        logger.error(f"Bike request failed: {e}")
     except (KeyError, IndexError) as e:
-        logger.error("Error parsing bike response: %s", e)
+        logger.error(f"Error parsing bike response: {e}")
     return None

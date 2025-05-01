@@ -1,6 +1,7 @@
+import json
 from datetime import datetime
 from enum import StrEnum
-from typing import ClassVar, List, Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl
 
@@ -12,6 +13,7 @@ class Webiste(StrEnum):
 
 
 class DataBaseUpdate(BaseModel):
+    website: Webiste
     n_new: int
     n_deleted: int
     n_updated: int
@@ -68,10 +70,10 @@ class BikeConnection(BaseModel):
 
 
 class BaseListing(BaseModel):
-    _additional_fields: ClassVar[list[str]]
-    website: ClassVar[Webiste]
+    additional_fields: list[str]
+    website: Webiste
 
-    url: Optional[HttpUrl] = Field(None, description="die url zu dem specifischen post")
+    url: HttpUrl = Field(None, description="die url zu dem specifischen post")
 
     aufgegeben_datum: Optional[datetime] = Field(
         None, description="das datum wo das inserat aufgegeb wurde"
@@ -120,21 +122,31 @@ class BaseListing(BaseModel):
         self.last_seen = dt
         self.status = "active"  # Mark as active again if it was deleted
 
+    def dump_json_serializable(self, **kwargs):
+        return json.loads(self.model_dump_json(**kwargs))
+
 
 class StudentsCHListing(BaseListing):
     # empty child class
-    _additional_fields: ClassVar[list[str]] = []
-    website: ClassVar[Webiste] = Webiste.students_ch
+    additional_fields: list[str] = Field([])
+    website: Webiste = Webiste.students_ch
 
 
 class WokoListing(BaseListing):
-    _additional_fields: ClassVar[list[str]] = []
-    website: ClassVar[Webiste] = Webiste.woko
+    additional_fields: list[str] = Field([])
+    website: Webiste = Webiste.woko
 
 
 class WGZimmerCHListing(BaseListing):
-    _additional_fields: ClassVar[list[str]] = ["wir_suchen", "wir_sind"]
-    website: ClassVar[Webiste] = Webiste.wg_zimmer_ch
+    additional_fields: list[str] = Field(["wir_suchen", "wir_sind"])
+    website: Webiste = Webiste.wg_zimmer_ch
 
     wir_suchen: Optional[str] = None
     wir_sind: Optional[str] = None
+
+
+WEBSITE_TO_MODEL: dict[Webiste, BaseListing] = {
+    Webiste.wg_zimmer_ch: WGZimmerCHListing,
+    Webiste.woko: WokoListing,
+    Webiste.students_ch: StudentsCHListing,
+}

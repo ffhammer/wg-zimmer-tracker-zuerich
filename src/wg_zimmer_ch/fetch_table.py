@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import List, Optional, Tuple
 from urllib.parse import urljoin
 
+import pytz
 from browser_use import (
     ActionResult,
     Agent,
@@ -21,6 +22,8 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel
+
+TIME_ZONE = pytz.timezone(os.environ["TIME_ZONE"])
 
 
 # --- Main Parsing Function ---
@@ -213,7 +216,7 @@ if __name__ == "__main__":
 
     llm = ChatGoogleGenerativeAI(model=args.gemini_model)
 
-    export_path = os.path.join(SAVE_DIR, datetime.now().isoformat() + ".json")
+    export_path = os.path.join(SAVE_DIR, datetime.now(TIME_ZONE).isoformat() + ".json")
     os.makedirs(SAVE_DIR, exist_ok=True)
 
     vals = asyncio.run(

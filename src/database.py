@@ -1,19 +1,27 @@
 # database.py
 import os
 from datetime import datetime
-from pathlib import Path
-from typing import List, Literal, Optional, Set, Tuple
+from typing import List, Literal, Optional, Tuple
 
 from pydantic import HttpUrl
 from tinydb import Query, TinyDB
-from tinydb.operations import set as tinyset  # Rename 'set' to avoid conflict
+from tinydb.operations import set as tinyset
 
+from src import students_ch, wg_zimmer_ch, woko
+from src.geo.commutes import batch_fetch_commutes
 from src.logger import logger
-from src.models import DataBaseUpdate, WGZimmerCHListing
-from src.wg_zimmer_ch.fetch_lists.ListingScraped import ListingScraped
+from src.models import (
+    WEBSITE_TO_MODEL,
+    BaseListing,
+    DataBaseUpdate,
+    StudentsCHListing,
+    Webiste,
+    WGZimmerCHListing,
+    WokoListing,
+)
 
 DB_FILE = os.path.join("db.json")
-DATA_DIR = Path("wg-zimmer-listings")
+MAX_GEO_REQEUSTS_PER_MINUTE = 33
 
 db = TinyDB(DB_FILE, indent=4, ensure_ascii=False)
 listings_table = db.table("listings")
@@ -21,7 +29,7 @@ updates_date = db.table("updates")
 ListingQuery = Query()
 
 
-def make_datetime_isonorm(dic: dict) -> dict:
+def to_json_serialiable(dic: dict) -> dict:
     for key, val in dic.items():
         if isinstance(val, datetime):
             dic[key] = val.isoformat()
@@ -31,13 +39,13 @@ def make_datetime_isonorm(dic: dict) -> dict:
     return dic
 
 
-def get_listing_by_url(url: str) -> Optional[WGZimmerCHListing]:
+def get_listing_by_url(url: str) -> Optional[BaseListing]:
     """Holt ein spezifisches Listing anhand seiner URL."""
     result = listings_table.get(ListingQuery.url == url)
     if result:
         try:
             # Manually handle potential type errors during conversion
-            return WGZimmerCHListing(**result)
+            return BaseListing(**result)
         except Exception as e:
             logger.error(
                 f"Failed to parse listing from DB for URL {url}: {e}. Data: {result}"
@@ -47,7 +55,9 @@ def get_listing_by_url(url: str) -> Optional[WGZimmerCHListing]:
 
 
 def upsert_listings(
-    scraped_listings: List[ListingScraped], now: datetime
+    urls: List[HttpUrl],
+    now: datetime,
+    website: Webiste,
 ) -> Tuple[int, int]:
     """Fügt neue Listings hinzu oder aktualisiert bestehende.
 
@@ -56,42 +66,53 @@ def upsert_listings(
     """
     updated_count = 0
 
-    insert_args = []
+    insert_urls = []
 
-    for scraped in scraped_listings:
-        if not scraped.url:
-            logger.warning(f"Skipping listing due to missing URL: {scraped.adresse}")
-            continue
-
-        url_str = str(scraped.url)
-        existing_doc = listings_table.get(ListingQuery.url == url_str)
-
+    for url in urls:
+        existing_doc = listings_table.get(ListingQuery.url == str(url))
         if existing_doc:
-            updated_count += update(scraped, url_str, existing_doc, now)
-
+            model = load_correct(existing_doc)
+            model.update(now)
+            existing_doc.update(model.dump_json_serializable())
         else:
-            insert_args.append((scraped, now))
+            insert_urls.append(url)
 
-    new_count = insert(insert_args)
+    new_count = insert(insert_urls, now, website)
 
     return new_count, updated_count
 
 
-def insert(inputs: list[tuple[ListingScraped, datetime]]):
+def insert(urls: list[HttpUrl], now: datetime, website: Webiste):
+    function_dict = {
+        Webiste.students_ch: students_ch.fetch_listings,
+        Webiste.woko: woko.fetch_listings,
+        Webiste.wg_zimmer_ch: wg_zimmer_ch.fetch_listings,
+    }
+
     try:
-        res = batch_create_listing_stored(inputs=inputs)
-        for listing in res:
-            listings_table.insert(make_datetime_isonorm(listing.model_dump()))
-        return len(res)
+        listings = function_dict[website](urls=urls, now=now)
+        logger.debug(f"fetched {len(urls)} pages for {website}")
+        listings = batch_fetch_commutes(
+            listings, max_requests_per_minute=MAX_GEO_REQEUSTS_PER_MINUTE
+        )
+        logger.debug(f"fetched {len(urls)} commutes  for {website}")
+
+        for listing in listings:
+            listings_table.insert(listing.dump_json_serializable())
+        return len(listings)
     except Exception as e:
-        logger.error(f"Error inserting new listing failed: {e}.")
+        logger.exception(f"Error inserting new listing failed: {e}.")
 
     return False
 
 
+def load_correct(jsons: str) -> WGZimmerCHListing | StudentsCHListing | WokoListing:
+    return WEBSITE_TO_MODEL[jsons["website"]].model_validate(jsons)
+
+
 def update(scraped, url_str, existing_doc, now):
     try:
-        existing_listing = WGZimmerCHListing(**existing_doc)
+        existing_listing = BaseListing(**existing_doc)
         existing_listing.update_from_scraped(scraped, now)
         return True
     except Exception as e:
@@ -99,11 +120,15 @@ def update(scraped, url_str, existing_doc, now):
     return False
 
 
-def mark_listings_as_deleted(active_urls_in_fetch: Set[str]) -> int:
+def mark_listings_as_deleted(urls: list[HttpUrl], website: Webiste) -> int:
     """Markiert Listings in der DB als 'deleted', wenn sie nicht im letzten Fetch waren."""
-    deleted_count = 0
-    active_listings_in_db = listings_table.search(ListingQuery.status == "active")
 
+    active_urls_in_fetch = {str(url) for url in urls}
+
+    deleted_count = 0
+    active_listings_in_db = listings_table.search(
+        ListingQuery.status == "active" and ListingQuery.website == website
+    )
     for listing_doc in active_listings_in_db:
         if listing_doc.get("url") not in active_urls_in_fetch:
             try:
@@ -120,14 +145,14 @@ def mark_listings_as_deleted(active_urls_in_fetch: Set[str]) -> int:
     return deleted_count
 
 
-def get_all_listings_stored(include_deleted=False) -> List[WGZimmerCHListing]:
+def get_all_listings_stored(include_deleted=False) -> List[BaseListing]:
     """Holt alle Listings aus der DB."""
     if include_deleted:
         results = listings_table.all()
     else:
         results = listings_table.search(ListingQuery.status == "active")
 
-    return [WGZimmerCHListing.model_validate(doc) for doc in results]
+    return [load_correct(BaseListing.model_validate(doc)) for doc in results]
 
 
 def update_listing_user_status(
@@ -141,48 +166,28 @@ def update_listing_user_status(
         logger.error(f"Error updating user status for {url}: {e}")
 
 
-def update_database(path: Path, dt: datetime) -> DataBaseUpdate:
-    assert path.exists(), f"file should exist: {path}"
-    logger.info(f"Starting to update {path}")
-    listings_unique = [
-        ListingScraped.model_validate_json(i)
-        for i in set(path.read_text().splitlines())
-    ]
-    n_deleted = mark_listings_as_deleted({str(i.url) for i in listings_unique})
-    new_count, updated_count = upsert_listings(listings_unique, now=dt)
+def update_database(
+    urls: list[HttpUrl], now: datetime, website: Webiste
+) -> DataBaseUpdate:
+    n_deleted = mark_listings_as_deleted(urls, website=website)
+    new_count, updated_count = upsert_listings(urls, now, website)
     status = DataBaseUpdate(
-        n_new=new_count, n_deleted=n_deleted, n_updated=updated_count, date=dt
+        website=website,
+        n_new=new_count,
+        n_deleted=n_deleted,
+        n_updated=updated_count,
+        date=now,
     )
-    logger.info(f"Sucessfully processed {path} with {status}")
-    updates_date.insert(make_datetime_isonorm(status.model_dump()))
+    logger.success(f"Successfully updated {website}")
+    updates_date.insert(to_json_serialiable(status.model_dump()))
     return status
 
 
-def get_last_update() -> Optional[DataBaseUpdate]:
-    sofar = [DataBaseUpdate.model_validate(i) for i in updates_date.all()]
-
+def get_last_update(website: Webiste) -> Optional[DataBaseUpdate]:
+    sofar = [
+        DataBaseUpdate.model_validate(i)
+        for i in updates_date.search(Query().website == website)
+    ]
     if not sofar:
         return
-
     return max(sofar, key=lambda x: x.date)
-
-
-def check_for_new_data_and_update() -> list[DataBaseUpdate]:
-    dates = [
-        datetime.fromisoformat(i.replace(".jsonl", "")) for i in os.listdir(DATA_DIR)
-    ]
-
-    last_update = get_last_update()
-
-    new = [i for i in dates if (not last_update) or last_update.date < i]
-
-    vals = []
-    for path in new:
-        file = DATA_DIR / f"{path.isoformat()}.jsonl"
-        vals.append(update_database(file, dt=path))
-    return vals
-
-
-if __name__ == "__main__":
-    print(check_for_new_data_and_update())
-    print(len(get_all_listings_stored()))

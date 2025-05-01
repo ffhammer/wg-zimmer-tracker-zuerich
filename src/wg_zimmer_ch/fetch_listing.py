@@ -116,6 +116,7 @@ def fetch_listing(url: HttpUrl, now: WGZimmerCHListing) -> WGZimmerCHListing:
         plz_und_stadt=plz_und_stadt,
         straße_und_hausnummer=straße_und_hausnummer,
         first_seen=now,
+        url=url,
     )
 
 
