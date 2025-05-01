@@ -16,7 +16,7 @@ echo "[Entrypoint] Starting Python application in background..."
 # because we configured Python logging to write directly to the file.
 # Pass any arguments passed to the script ($@) to python
 xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
-    python fetch_new_user.py "$@" &
+    python fetch_table.py "$@" &
 
 # Get the Process ID (PID) of the background application
 APP_PID=$!
