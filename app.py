@@ -1,6 +1,6 @@
 # src/app.py
 from datetime import date, datetime, time
-from typing import List, Optional
+from typing import Optional
 
 import streamlit as st
 
@@ -8,7 +8,8 @@ from src.database import (
     get_all_listings_stored,
     get_last_update,
 )
-from src.models import DataBaseUpdate, WGZimmerCHListing
+from src.models import BaseListing, DataBaseUpdate, Webiste
+from src.refresh import refresh_all
 from src.render.big_map import render_map
 from src.render.detail_page import render_detail_page
 from src.render.page_lists import render_page_lists
@@ -21,17 +22,11 @@ if "selected_id" not in st.session_state:
     st.session_state.selected_id = None
 
 
-# --- Helper Functions ---
-
-
-# Function to handle the status update and force a re-run
-
-
 # --- Load Data ---
 # Load data fresh each time to reflect updates from callbacks or DB checks
 # Caching might be complex here due to external DB file and status updates
-all_listings: List[WGZimmerCHListing] = get_all_listings_stored(include_deleted=False)
-last_db_update_info: Optional[DataBaseUpdate] = None
+all_listings = get_all_listings_stored(include_deleted=False)
+last_db_update_info: Optional[DataBaseUpdate] = {i: get_last_update(i) for i in Webiste}
 
 # --- Sidebar ---
 st.sidebar.title("WG Zimmer Tracker")
@@ -39,48 +34,25 @@ st.sidebar.markdown("---")
 
 # 1. Fetch & Update Controls
 st.sidebar.header("Daten Aktualisieren")
-if st.sidebar.button("Neuen Fetch starten (öffnet Terminal)"):
+
+if st.sidebar.button("Neue Daten fetchen & DB aktualisieren"):
+    with st.spinner("Prüfe auf neue Daten und aktualisiere Datenbank..."):
+        try:
+            statuses = refresh_all()
+            st.sidebar.success("Datenbank erfolgreich geprüft/aktualisiert!")
+            st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"Fehler beim Datenbank-Update: {e}")
+
+if st.sidebar.button("Neue wgzimmer.ch Inserate fetchen (öffnet Terminal)"):
     try:
         start_fetch_table_terminal_process()
         st.sidebar.success("Fetch-Prozess im Terminal gestartet.")
         st.sidebar.info(
-            "Bitte warte bis der Fetch abgeschlossen ist und klicke dann auf 'Neue Daten prüfen & DB aktualisieren'."
+            "Bitte warte bis der Fetch abgeschlossen ist und klicke dann auf 'Neue Daten fetchen'."
         )
     except Exception as e:
         st.sidebar.error(f"Fehler beim Starten des Fetch-Prozesses: {e}")
-
-update_results = None
-if st.sidebar.button("Neue Daten prüfen & DB aktualisieren"):
-    with st.spinner("Prüfe auf neue Daten und aktualisiere Datenbank..."):
-        try:
-            # update_results = check_for_new_data_and_update()
-            # Refresh data after update
-            all_listings = get_all_listings_stored(include_deleted=False)
-            last_db_update_info = get_last_update("students.ch")
-            st.sidebar.success("Datenbank erfolgreich geprüft/aktualisiert!")
-            st.rerun()  # Rerun to apply potential new data and update display
-        except Exception as e:
-            st.sidebar.error(f"Fehler beim Datenbank-Update: {e}")
-
-st.sidebar.markdown("---")
-
-# Display Last Update Info
-st.sidebar.header("Letztes DB Update")
-if last_db_update_info:
-    st.sidebar.metric(
-        "Datum",
-        (
-            last_db_update_info.date.strftime("%Y-%m-%d %H:%M:%S")
-            if last_db_update_info.date
-            else "N/A"
-        ),
-    )
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Neu", last_db_update_info.n_new)
-    col2.metric("Aktualisiert", last_db_update_info.n_updated)
-    col3.metric("Gelöscht", last_db_update_info.n_deleted)
-else:
-    st.sidebar.info("Noch keine Update-Informationen vorhanden.")
 
 st.sidebar.markdown("---")
 
@@ -89,7 +61,7 @@ st.sidebar.header("Filter")
 
 # Date Filter (Default: September/October of current year)
 current_year = datetime.now().year
-default_start_date = date(current_year, 9, 1)
+default_start_date = date(current_year, 8, 1)
 default_end_date = date(current_year, 10, 31)
 
 date_range = st.sidebar.date_input(
@@ -126,6 +98,15 @@ price_range = st.sidebar.slider(
 )
 min_price, max_price = price_range
 
+selected_websites = st.sidebar.multiselect(
+    "Websites filtern",
+    options=[w.value for w in Webiste],
+    default=[w.value for w in Webiste],
+)
+
+max_bike_min = st.sidebar.slider("Max. Fahrrad-Minuten", 0, 60, 60)
+
+
 # User Status Filter
 filter_not_seen = st.sidebar.checkbox("Nur nicht gesehene anzeigen", value=False)
 filter_not_bookmarked = st.sidebar.checkbox("Nur nicht gemerkte anzeigen", value=False)
@@ -149,6 +130,28 @@ sort_option = st.sidebar.selectbox(
 
 
 # --- Main Area ---
+
+# Display Last Update Info
+st.header("Letztes DB Update")
+if len(last_db_update_info):
+    for col, (w, info) in zip(
+        st.columns(len(last_db_update_info)), last_db_update_info.items()
+    ):
+        with col:
+            st.subheader(w.value)
+            if info:
+                st.metric("Datum", info.date.strftime("%Y-%m-%d %H:%M:%S"))
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Neu", info.n_new)
+                col2.metric("Aktualisiert", info.n_updated)
+                col3.metric("Gelöscht", info.n_deleted)
+            else:
+                st.info("Kein Update vorhanden")
+else:
+    st.info("Noch keine Update-Informationen vorhanden.")
+st.markdown("---")
+
+
 st.title("Verfügbare WG Zimmer")
 
 
@@ -178,7 +181,17 @@ filtered_listings = [
     for listing in filtered_listings
     if listing.miete is not None and min_price <= listing.miete <= max_price
 ]
+filtered_listings = [
+    listing
+    for listing in filtered_listings
+    if listing.website.value in selected_websites
+]
 
+filtered_listings = [
+    listing
+    for listing in filtered_listings
+    if not listing.bike or listing.bike.duration_min <= max_bike_min
+]
 # User Status Filters
 if filter_not_seen:
     filtered_listings = [
@@ -195,18 +208,18 @@ elif filter_only_bookmarked:
 
 
 # Apply Sorting
-def sort_key_price(listing: WGZimmerCHListing):
+def sort_key_price(listing: BaseListing):
     return (
         listing.miete if listing.miete is not None else float("inf")
     )  # None treated as high price
 
 
-def sort_key_date_frei(listing: WGZimmerCHListing):
+def sort_key_date_frei(listing: BaseListing):
     # Treat None date as very far in the future for ascending sort
     return listing.datum_ab_frei if listing.datum_ab_frei is not None else datetime.max
 
 
-def sort_key_date_aufgegeben(listing: WGZimmerCHListing):
+def sort_key_date_aufgegeben(listing: BaseListing):
     # Treat None date as very old for newest-first sort (descending)
     return (
         listing.aufgegeben_datum
@@ -233,16 +246,6 @@ render_map(filtered_listings)
 
 # Display Results
 st.subheader(f"{len(filtered_listings)} von {len(all_listings)} Listings angezeigt")
-
-if update_results:
-    st.success(
-        f"Update abgeschlossen: {len(update_results)} neue Datei(en) verarbeitet."
-    )
-    for res in update_results:
-        st.info(
-            f"- {res.date.strftime('%Y-%m-%d %H:%M')}: {res.n_new} neu, {res.n_updated} aktualisiert, {res.n_deleted} gelöscht."
-        )
-    st.markdown("---")  # Add separator after update message
 
 
 if not filtered_listings:

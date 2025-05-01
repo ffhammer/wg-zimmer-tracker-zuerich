@@ -44457,7 +44457,7 @@
                     }
                 ]
             },
-            "gesehen": false,
+            "gesehen": true,
             "gemerkt": false,
             "status": "active",
             "first_seen": "2025-05-01T11:27:46.391709",
@@ -51471,6 +51471,90 @@
             "n_deleted": 0,
             "n_updated": 0,
             "date": "2025-05-01T11:32:48.305128"
+        },
+        "9": {
+            "website": "students.ch",
+            "n_new": 0,
+            "n_deleted": 0,
+            "n_updated": 0,
+            "date": "2025-05-01T13:23:10.609771"
+        },
+        "10": {
+            "website": "woko.ch",
+            "n_new": 0,
+            "n_deleted": 0,
+            "n_updated": 0,
+            "date": "2025-05-01T13:23:10.609771"
+        },
+        "11": {
+            "website": "wg-zimmer.ch",
+            "n_new": 0,
+            "n_deleted": 0,
+            "n_updated": 0,
+            "date": "2025-05-01T13:23:10.609771"
+        },
+        "12": {
+            "website": "students.ch",
+            "n_new": 0,
+            "n_deleted": 0,
+            "n_updated": 3,
+            "date": "2025-05-01T13:24:40.329383"
+        },
+        "13": {
+            "website": "woko.ch",
+            "n_new": 0,
+            "n_deleted": 0,
+            "n_updated": 2,
+            "date": "2025-05-01T13:24:40.329383"
+        },
+        "14": {
+            "website": "students.ch",
+            "n_new": 0,
+            "n_deleted": 0,
+            "n_updated": 3,
+            "date": "2025-05-01T13:31:48.545634"
+        },
+        "15": {
+            "website": "woko.ch",
+            "n_new": 0,
+            "n_deleted": 0,
+            "n_updated": 2,
+            "date": "2025-05-01T13:31:48.545634"
+        },
+        "16": {
+            "website": "students.ch",
+            "n_new": 0,
+            "n_deleted": 0,
+            "n_updated": 3,
+            "date": "2025-05-01T13:32:05.961335"
+        },
+        "17": {
+            "website": "woko.ch",
+            "n_new": 0,
+            "n_deleted": 0,
+            "n_updated": 2,
+            "date": "2025-05-01T13:32:05.961335"
+        },
+        "18": {
+            "website": "students.ch",
+            "n_new": 0,
+            "n_deleted": 0,
+            "n_updated": 3,
+            "date": "2025-05-01T13:32:39.042496"
+        },
+        "19": {
+            "website": "woko.ch",
+            "n_new": 0,
+            "n_deleted": 0,
+            "n_updated": 2,
+            "date": "2025-05-01T13:32:39.042496"
+        },
+        "20": {
+            "website": "wg-zimmer.ch",
+            "n_new": 0,
+            "n_deleted": 0,
+            "n_updated": 93,
+            "date": "2025-05-01T13:32:39.042496"
         }
     }
 }

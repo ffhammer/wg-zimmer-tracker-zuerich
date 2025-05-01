@@ -74,6 +74,7 @@ def upsert_listings(
             model = load_correct(existing_doc)
             model.update(now)
             existing_doc.update(model.dump_json_serializable())
+            updated_count += 1
         else:
             insert_urls.append(url)
 
