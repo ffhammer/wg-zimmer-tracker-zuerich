@@ -1,16 +1,17 @@
 import re
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 import requests
 from bs4 import BeautifulSoup
+from pydantic import HttpUrl
 from tqdm import tqdm
 
 from src.logger import logger
 from src.models import WokoListing
 
 
-def fetch_listing(url: str) -> Optional[WokoListing]:
+def fetch_listing(url: str, now: datetime) -> Optional[WokoListing]:
     try:
         r = requests.get(url)
         if not r.ok:
@@ -53,31 +54,36 @@ def fetch_listing(url: str) -> Optional[WokoListing]:
             img_urls=imgs,
             latitude=lat,
             longitude=lng,
+            first_seen=now,
         )
     except Exception as e:
         logger.error(f"parse failed for {url}: {e}")
         return None
 
 
-def fetch_all_listings(
+def fetch_table(
     page_url: str = "https://www.woko.ch/de/nachmieter-gesucht",
-) -> List[WokoListing]:
+) -> list[HttpUrl]:
+    resp = requests.get(page_url)
+    if not resp.ok:
+        logger.error(f"Failed to fetch listing table: {resp.status_code}")
+        return []
+    soup = BeautifulSoup(resp.text, "html.parser")
+    links = soup.select(".inserat a[href*='/de/zimmer-in-zuerich-details/']")
+    return [HttpUrl("https://www.woko.ch" + a["href"]) for a in links]
+
+
+def fetch_listings(
+    urls: list[HttpUrl],
+    now: datetime,
+) -> list[WokoListing]:
     try:
-        now = datetime.now()
-        r = requests.get(page_url)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-        links = soup.select(".inserat a[href*='/de/zimmer-in-zuerich-details/']")
-        urls = ["https://www.woko.ch" + a["href"] for a in links]
-        listings = [
-            listing
-            for u in tqdm(urls, desc="Fetch Woko listings")
-            if (listing := fetch_listing(u))
+        return [
+            l
+            for u in tqdm(urls, desc="Fetching Individual Listings")
+            if (l := fetch_listing(u, now=now))
         ]
 
-        for l in listings:
-            l.first_seen = now
-        return listings
     except Exception as e:
-        logger.error(f"fetch listings failed: {e}")
+        logger.error(f"Failed fetching listings from table: {e}")
         return []
