@@ -2,7 +2,7 @@ logs
 browser-use
 addblockplus
 db.json
-listings
+wg-zimmer-listings
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
