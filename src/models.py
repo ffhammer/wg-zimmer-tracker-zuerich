@@ -116,10 +116,7 @@ class BaseListing(BaseModel):
     def id(self) -> str:
         return str(self.url)
 
-    def update(self, scraped: "BaseListing", dt: datetime) -> None:
-        self.miete = scraped.miete
-        self.aufgegeben_datum = scraped.aufgegeben_datum
-        self.datum_ab_frei = scraped.datum_ab_frei
+    def update(self, dt: datetime) -> None:
         self.last_seen = dt
         self.status = "active"  # Mark as active again if it was deleted
 
