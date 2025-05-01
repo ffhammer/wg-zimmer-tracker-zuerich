@@ -8,7 +8,7 @@ services:
       - PYTHONUNBUFFERED=1
       - GOOGLE_APPLICATION_CREDENTIALS=/root/.config/gcloud/application_default_credentials.json
     volumes:
-      - ./listings:/app/listings
+      - ./wg-zimmer-listings:/app/wg-zimmer-listings
       - /tmp/.X11-unix:/tmp/.X11-unix
       - /Users/felix/.config/gcloud:/root/.config/gcloud:ro
     network_mode: host

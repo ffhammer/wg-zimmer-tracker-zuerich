@@ -13,8 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && playwright install --with-deps
 
-COPY src/fetch_listing_lists src/fetch_listing_lists
-COPY fetch_new_user.py fetch_new_user.py
+COPY src/wg_zimmer_ch/fetch_table.py fetch_table.py
 COPY entrypoint.sh .
 
 # Make entrypoint executable

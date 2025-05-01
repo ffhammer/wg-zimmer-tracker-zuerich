@@ -18,7 +18,6 @@ def start_terminal_process(
     and returns True if the success marker is found in logs and the container exits cleanly.
 
     Args:
-        export_filename: The name of the file to save results to within the mapped volume (e.g., "output.jsonl").
         max_price: Maximum price filter for the search.
         region: Region filter for the search.
         gemini_model: The Gemini model to use.
@@ -67,8 +66,3 @@ def start_terminal_process(
         f'tell application "Terminal" to do script "{" ".join(docker_cmd_list)}"',
     ]
     _ = subprocess.Popen(terminal_cmd_list, cwd=os.getcwd(), start_new_session=True)
-
-
-if __name__ == "__main__":
-    # print(COMPOSE_PROJECT_DIR)
-    start_terminal_process(export_filename="test.json")
