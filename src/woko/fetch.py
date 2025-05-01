@@ -21,9 +21,14 @@ def fetch_listing(url: str, now: datetime) -> Optional[WokoListing]:
         tables = soup.select(".inserat-details table")
         rows = tables[0].find_all("tr")
         # availability, address, rent
-        ab = re.search(
-            r"ab (\d{2}\.\d{2}\.\d{4})", rows[0].find_all("td")[1].text
-        ).group(1)
+        date_row = rows[0].find_all("td")[1].text
+
+        ab = re.search(r"ab (\d{2}\.\d{2}\.\d{4})", date_row).group(1)
+
+        bis = None
+        if match := re.search(r"bis (\d{2}\.\d{2}\.\d{4})", date_row):
+            bis = datetime.strptime(match.group(1), "%d.%m.%Y")
+
         addr = rows[1].find_all("td")[1].text.strip()
         m = float(re.search(r"(\d+)", rows[2].find_all("td")[1].text).group(1))
         street, city = [s.strip() for s in addr.split(",", 1)]
@@ -31,8 +36,10 @@ def fetch_listing(url: str, now: datetime) -> Optional[WokoListing]:
         contact = tables[1]
         mail = contact.find("a", href=re.compile(r"mailto:"))["href"].split(":", 1)[1]
         # sonstiges description
-        desc_row = tables[2].find("td", string="Sonstiges").find_next_sibling("td")
-        desc = desc_row.get_text(" ").strip()
+        sonstiges = tables[2].find("td", string="Sonstiges")
+        desc = (
+            sonstiges.find_next_sibling("td").get_text(" ").strip() if sonstiges else ""
+        )
         # images
         imgs = [
             "https://www.woko.ch" + a["href"]
@@ -45,6 +52,7 @@ def fetch_listing(url: str, now: datetime) -> Optional[WokoListing]:
         return WokoListing(
             url=url,
             datum_ab_frei=datetime.strptime(ab, "%d.%m.%Y"),
+            datum_frei_bis=bis,
             straße_und_hausnummer=street,
             plz_und_stadt=city,
             miete=m,
@@ -56,12 +64,12 @@ def fetch_listing(url: str, now: datetime) -> Optional[WokoListing]:
             first_seen=now,
         )
     except Exception as e:
-        logger.error(f"parse failed for {url}: {e}")
+        logger.exception(f"parse failed for {url}: {e}")
         return None
 
 
 def fetch_table(
-    page_url: str = "https://www.woko.ch/de/nachmieter-gesucht",
+    page_url: str = "https://www.woko.ch/de/zimmer-in-zuerich",
 ) -> list[HttpUrl]:
     resp = requests.get(page_url)
     if not resp.ok:
