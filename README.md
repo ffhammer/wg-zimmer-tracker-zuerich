@@ -91,15 +91,3 @@ Läuft automatisch unter:
 [http://localhost:8501](http://localhost:8501)
 
 ---
-
-## 📁 Struktur
-
-```text
-src/
-├── app.py                  # Streamlit UI
-├── database.py             # DB-Handling (TinyDB)
-├── refresh.py              # Aktualisiert DB aus Files/API
-├── geo/                    # Geo-Abfragen + Routing
-├── render/                 # UI-Komponenten
-└── wg_zimmer_ch/           # Browser-basierter Fetch
-```
