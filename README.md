@@ -55,6 +55,7 @@ git clone https://github.com/ffhammer/wg-zimmer-tracker-zuerich.git
 cd wg-tracker
 cp .env.example .env # API Keys eintragen
 docker-compose up --build
+pip install -r requirements.txt
 ```
 
 ---
