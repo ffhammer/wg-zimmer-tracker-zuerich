@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from pydantic import HttpUrl
 from tqdm import tqdm
 
+from src.geo.fetch_location import fetch_cordinates
 from src.logger import logger
 from src.models import StudentsCHListing
 
@@ -53,6 +54,12 @@ def parse_html(html: str, url: str, now: datetime) -> StudentsCHListing:
     imgs = soup.select(".box_small a[data-lightbox]")
     img_urls = [a["href"] for a in imgs]
 
+    lat, lon = fetch_cordinates(
+        straße_und_hausnummer=straße_und_hausnummer,
+        plz_und_stadt=plz_und_stadt,
+        region="Zürich (Stadt)",
+    )
+
     return StudentsCHListing(
         url=url,
         aufgegeben_datum=aufgegeben_datum,
@@ -66,6 +73,8 @@ def parse_html(html: str, url: str, now: datetime) -> StudentsCHListing:
         datum_frei_bis=datum_frei_bis,
         img_urls=img_urls,
         first_seen=now,
+        latitude=lat,
+        longitude=lon,
     )
 
 

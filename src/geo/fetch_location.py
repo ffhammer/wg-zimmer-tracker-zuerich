@@ -3,17 +3,18 @@ import os
 import requests
 
 from src.logger import logger
-from src.models import BaseListing
 
 
 def fetch_cordinates(
-    listing: BaseListing,
+    straße_und_hausnummer: str,
+    plz_und_stadt: str,
+    region: str,
 ) -> tuple[None, None] | tuple[float, float]:
     """Return (lat, lon) if correct else (None, None) and logs error"""
     ordered_atrs = [
-        listing.straße_und_hausnummer,
-        listing.plz_und_stadt,
-        listing.region,
+        straße_und_hausnummer,
+        plz_und_stadt,
+        region,
     ]
     if not all(ordered_atrs):
         return None, None
@@ -38,9 +39,7 @@ def fetch_cordinates(
         resp.raise_for_status()
         data = resp.json()
         if not data:
-            logger.error(
-                f"No results from LocationIQ for '{address}' (url: {listing.url})"
-            )
+            logger.error(f"No results from LocationIQ for '{address}'")
             return None, None
 
         lat = float(data[0]["lat"])
@@ -49,7 +48,5 @@ def fetch_cordinates(
         return lat, lon
 
     except Exception as e:
-        logger.error(
-            f"Could not fetch location for '{address}'. error: {e}. url '{listing.url}'"
-        )
+        logger.error(f"Could not fetch location for '{address}'. error: {e}. url ")
         return None, None
