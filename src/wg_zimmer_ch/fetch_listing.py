@@ -4,54 +4,56 @@ from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from pydantic import HttpUrl
+from tqdm import tqdm
 
 from src.geo.fetch_location import fetch_cordinates
 from src.logger import logger
 from src.models import (
     WGZimmerCHListing,
 )
-from src.wg_zimmer_ch.fetch_lists.ListingScraped import ListingScraped
 
 assert load_dotenv()
 
 
-def create_listing_stored(scraped: ListingScraped, now: datetime) -> WGZimmerCHListing:
-    listing = WGZimmerCHListing(
-        **scraped.model_dump(exclude_none=True),
-        first_seen=now,
-        last_seen=now,
-    )
-    logger.debug(f"Fetching: {listing.url}")
-    response = requests.get(listing.url)
+def fetch_listing(url: HttpUrl, now: WGZimmerCHListing) -> WGZimmerCHListing:
+    """
+    Fetch a WGZimmer.ch listing page and return a populated WGZimmerCHListing model.
+    Extracts region, address, availability dates, rent, description, images and coordinates.
+    May raise on HTTP or parsing errors.
+    """
+    # after soup = BeautifulSoup(...)
+    response = requests.get(url)
 
     if not response.ok:
-        logger.error(f"Failed fetching {listing.url} - {response.status_code}")
-        return listing
+        raise requests.HTTPError(f"Failed fetching {url} - {response.status_code}")
 
-    try:
-        return extract_atributes(listing, response)
-    except Exception as e:
-        logger.error(f"extract_atributes failed with '{e}' for:\n{listing.url}")
-
-    return listing
-
-
-def extract_atributes(listing: WGZimmerCHListing, response) -> WGZimmerCHListing:
     soup = BeautifulSoup(response.content, "html.parser")
+    meta_date = soup.find("meta", {"name": "DC.Date"})["content"]
+    aufgegeben = datetime.strptime(meta_date, "%Y-%m-%d")
+    date_div = soup.select_one("div.col-wrap.date-cost")
+    for p in date_div.find_all("p"):
+        key = p.find("strong").get_text(strip=True)
+        val = p.get_text(separator=" ", strip=True).replace(key, "").strip()
+        if key == "Ab dem":
+            datum_ab = datetime.strptime(val, "%d.%m.%Y")
+        elif key == "Bis":
+            frei_bis = val if val != "Unbefristet" else None
+        elif key.startswith("Miete"):
+            miete = float(re.search(r"(\d+)", val).group(1))
 
     address_div = soup.select_one("div.adress-region")
-    if address_div:
 
-        def extract_nested_value(name: str) -> str | None:
-            try:
-                val = address_div.find("strong", string=name)
-                return val.next_sibling.strip() if val and val.next_sibling else None
-            except Exception as e:
-                logger.error(f"extracting {name} failed with {e}")
+    def extract_nested_value(name: str) -> str | None:
+        try:
+            val = address_div.find("strong", string=name)
+            return val.next_sibling.strip() if val and val.next_sibling else None
+        except Exception as e:
+            logger.error(f"extracting {name} failed with {e}")
 
-        listing.region = extract_nested_value("Region")
-        listing.adresse = extract_nested_value("Adresse")
-        listing.ort = extract_nested_value("Ort")
+    region = extract_nested_value("Region")
+    straße_und_hausnummer = extract_nested_value("Adresse")
+    plz_und_stadt = extract_nested_value("Ort")
 
     def extract_simple_value(query: str) -> str | None:
         try:
@@ -61,12 +63,12 @@ def extract_atributes(listing: WGZimmerCHListing, response) -> WGZimmerCHListing
         except Exception as e:
             logger.error(f"extracting {query} failed with {e}")
 
-    listing.beschreibung = extract_simple_value("div.mate-content > p")
-    listing.wir_suchen = extract_simple_value("div.room-content > p")
-    listing.wir_sind = extract_simple_value("div.person-content > p")
+    beschreibung = extract_simple_value("div.mate-content > p")
+    wir_suchen = extract_simple_value("div.room-content > p")
+    wir_sind = extract_simple_value("div.person-content > p")
 
     base_url = "https://www.wgzimmer.ch"
-    listing.img_urls = list(
+    img_urls = list(
         {
             tag["content"]
             for tag in soup.find_all("meta", {"property": "og:image"})
@@ -81,11 +83,11 @@ def extract_atributes(listing: WGZimmerCHListing, response) -> WGZimmerCHListing
     )
 
     match = re.search(
-        r"ol\.proj\.fromLonLat\(\[\s*([+-]?\d+\.\d+)\s*,\s*([+-]?\d+\.\d+)\s*\]\)",
+        rb"ol\.proj\.fromLonLat\(\[\s*([+-]?\d+\.\d+)\s*,\s*([+-]?\d+\.\d+)\s*\]\)",
         response.content,
     )
     if match:
-        listing.longitude, listing.latitude = (
+        longitude, latitude = (
             float(match.group(1)),
             float(match.group(2)),
         )
@@ -93,6 +95,41 @@ def extract_atributes(listing: WGZimmerCHListing, response) -> WGZimmerCHListing
         logger.info(
             "could not fetch longitude and langitude from the map. using the api"
         )
-        listing.latitude, listing.longitude = fetch_cordinates(listing)
+        latitude, longitude = fetch_cordinates(
+            straße_und_hausnummer=straße_und_hausnummer,
+            plz_und_stadt=plz_und_stadt,
+            region=region,
+        )
 
-    return listing
+    return WGZimmerCHListing(
+        aufgegeben_datum=aufgegeben,
+        miete=miete,
+        datum_ab_frei=datum_ab,
+        datum_frei_bis=frei_bis,
+        region=region,
+        beschreibung=beschreibung,
+        wir_suchen=wir_suchen,
+        wir_sind=wir_sind,
+        img_urls=img_urls,
+        longitude=longitude,
+        latitude=latitude,
+        plz_und_stadt=plz_und_stadt,
+        straße_und_hausnummer=straße_und_hausnummer,
+        first_seen=now,
+    )
+
+
+def fetch_listings(
+    urls: list[HttpUrl],
+    now: datetime,
+) -> list[WGZimmerCHListing]:
+    try:
+        return [
+            l
+            for u in tqdm(urls, desc="Fetching Individual Listings")
+            if (l := fetch_listing(u, now=now))
+        ]
+
+    except Exception as e:
+        logger.error(f"Failed fetching listings from table: {e}")
+        return []

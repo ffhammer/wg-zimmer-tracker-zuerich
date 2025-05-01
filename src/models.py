@@ -82,12 +82,9 @@ class BaseListing(BaseModel):
     datum_frei_bis: Optional[datetime | str] = None
     miete: Optional[float] = Field(None, description="miete in schweizer franken")
     größe_in_m2: Optional[float] = None
-    profile_img_url: Optional[HttpUrl] = Field(
-        None, description="URL des Vorschaubildes"
-    )
     contact_mail: Optional[EmailStr] = None
     beschreibung: Optional[str] = None
-    img_urls: list = Field([])
+    img_urls: list[HttpUrl] = Field([])
 
     # Ortungs spezifisch
     latitude: Optional[float] = None

@@ -8,13 +8,12 @@ from pydantic import HttpUrl
 from tinydb import Query, TinyDB
 from tinydb.operations import set as tinyset  # Rename 'set' to avoid conflict
 
-from src.fetch_listing_details.fetch_listing_details import batch_create_listing_stored
-from src.fetch_listing_lists.ListingScraped import ListingScraped
 from src.logger import logger
-from src.models import DataBaseUpdate, ListingStored
+from src.models import DataBaseUpdate, WGZimmerCHListing
+from src.wg_zimmer_ch.fetch_lists.ListingScraped import ListingScraped
 
 DB_FILE = os.path.join("db.json")
-DATA_DIR = Path("listings")
+DATA_DIR = Path("wg-zimmer-listings")
 
 db = TinyDB(DB_FILE, indent=4, ensure_ascii=False)
 listings_table = db.table("listings")
@@ -32,13 +31,13 @@ def make_datetime_isonorm(dic: dict) -> dict:
     return dic
 
 
-def get_listing_by_url(url: str) -> Optional[ListingStored]:
+def get_listing_by_url(url: str) -> Optional[WGZimmerCHListing]:
     """Holt ein spezifisches Listing anhand seiner URL."""
     result = listings_table.get(ListingQuery.url == url)
     if result:
         try:
             # Manually handle potential type errors during conversion
-            return ListingStored(**result)
+            return WGZimmerCHListing(**result)
         except Exception as e:
             logger.error(
                 f"Failed to parse listing from DB for URL {url}: {e}. Data: {result}"
@@ -92,7 +91,7 @@ def insert(inputs: list[tuple[ListingScraped, datetime]]):
 
 def update(scraped, url_str, existing_doc, now):
     try:
-        existing_listing = ListingStored(**existing_doc)
+        existing_listing = WGZimmerCHListing(**existing_doc)
         existing_listing.update_from_scraped(scraped, now)
         return True
     except Exception as e:
@@ -121,14 +120,14 @@ def mark_listings_as_deleted(active_urls_in_fetch: Set[str]) -> int:
     return deleted_count
 
 
-def get_all_listings_stored(include_deleted=False) -> List[ListingStored]:
+def get_all_listings_stored(include_deleted=False) -> List[WGZimmerCHListing]:
     """Holt alle Listings aus der DB."""
     if include_deleted:
         results = listings_table.all()
     else:
         results = listings_table.search(ListingQuery.status == "active")
 
-    return [ListingStored.model_validate(doc) for doc in results]
+    return [WGZimmerCHListing.model_validate(doc) for doc in results]
 
 
 def update_listing_user_status(
