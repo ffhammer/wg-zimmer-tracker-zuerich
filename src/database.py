@@ -152,7 +152,7 @@ def get_all_listings_stored(include_deleted=False) -> List[BaseListing]:
     else:
         results = listings_table.search(ListingQuery.status == "active")
 
-    return [load_correct(BaseListing.model_validate(doc)) for doc in results]
+    return [load_correct(doc) for doc in results]
 
 
 def update_listing_user_status(
