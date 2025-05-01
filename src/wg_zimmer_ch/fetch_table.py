@@ -233,13 +233,6 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"Failed to parse page {idx}: {e}")
 
-    try:
-        while (save_path := input("debug_save_to")) != "stop":
-            with open(save_path, "w") as f:
-                json.dump(listings, f, indent=4)
-    except Exception as e:
-        logging.error(e)
-
     with open(export_path, "w") as f:
         json.dump(listings, f, indent=4)
 
