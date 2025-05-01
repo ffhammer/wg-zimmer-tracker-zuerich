@@ -45,7 +45,6 @@ def fetch_listing(url: str, now: datetime) -> Optional[WokoListing]:
         return WokoListing(
             url=url,
             datum_ab_frei=datetime.strptime(ab, "%d.%m.%Y"),
-            adresse=addr,
             straße_und_hausnummer=street,
             plz_und_stadt=city,
             miete=m,

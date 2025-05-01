@@ -63,7 +63,6 @@ def parse_html(html: str, url: str, now: datetime) -> StudentsCHListing:
     return StudentsCHListing(
         url=url,
         aufgegeben_datum=aufgegeben_datum,
-        adresse=adresse,
         straße_und_hausnummer=straße_und_hausnummer,
         plz_und_stadt=plz_und_stadt,
         beschreibung=beschreibung,

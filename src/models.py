@@ -4,8 +4,6 @@ from typing import ClassVar, List, Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl
 
-from src.wg_zimmer_ch.fetch_lists.ListingScraped import ListingScraped
-
 
 class Webiste(StrEnum):
     wg_zimmer_ch = "wg-zimmer.ch"
@@ -69,7 +67,7 @@ class BikeConnection(BaseModel):
         return f"🚴 Bike: {self.dist_km:.1f} km in {self.duration_min:.0f} min"
 
 
-class BaseListing(ListingScraped):
+class BaseListing(BaseModel):
     _additional_fields: ClassVar[list[str]]
     website: ClassVar[Webiste]
 
@@ -92,7 +90,6 @@ class BaseListing(ListingScraped):
     img_urls: list = Field([])
 
     # Ortungs spezifisch
-    adresse: Optional[str] = Field(None, description="einfach ganzer adress string")
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     straße_und_hausnummer: Optional[str] = None
@@ -147,12 +144,3 @@ class WGZimmerCHListing(BaseListing):
 
     wir_suchen: Optional[str] = None
     wir_sind: Optional[str] = None
-
-    def update(self, scraped: ListingScraped, dt: datetime):
-        """Momentatn is LisingsScraped seperat"""
-        # Update fields that might change (though unlikely for WGZimmer)
-        self.miete = scraped.miete
-        self.aufgegeben_datum = scraped.aufgegeben_datum
-        self.datum_ab_frei = scraped.datum_ab_frei
-        self.last_seen = dt
-        self.status = "active"  # Mark as active again if it was deleted
