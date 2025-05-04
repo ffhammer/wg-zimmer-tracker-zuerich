@@ -3,13 +3,21 @@ from datetime import datetime
 from enum import StrEnum
 from typing import List, Literal, Optional
 
+import requests
 from pydantic import BaseModel, EmailStr, Field, HttpUrl
+
+from src.logger import logger
 
 
 class Webiste(StrEnum):
     wg_zimmer_ch = "wg-zimmer.ch"
     woko = "woko.ch"
     students_ch = "students.ch"
+
+
+class ExampleDraft(BaseModel):
+    listing_url: HttpUrl
+    content: str
 
 
 class DataBaseUpdate(BaseModel):
@@ -124,6 +132,48 @@ class BaseListing(BaseModel):
 
     def dump_json_serializable(self, **kwargs):
         return json.loads(self.model_dump_json(**kwargs))
+
+    def to_llm_input(self, include_images: bool = True) -> list[dict[str, str]]:
+        """Format listing data for LLM input."""
+
+        # Collect relevant fields
+        data: dict[str, str] = {}
+        for attr in (
+            "beschreibung",
+            "größe_in_m2",
+            "datum_ab_frei",
+            "datum_frei_bis",
+            "miete",
+        ) + tuple(self.additional_fields):
+            val = getattr(self, attr, None)
+            if val is not None:
+                data[attr] = val.isoformat() if hasattr(val, "isoformat") else str(val)
+
+        # Primary text block
+        output: list[dict[str, str]] = [
+            {"type": "text", "text": json.dumps(data, ensure_ascii=False)}
+        ]
+
+        if not include_images:
+            return output
+
+        # Embed images as base64
+        for img in self.img_urls:
+            enc = self._fetch_and_format_img(img)
+            if enc:
+                output.append(enc)
+
+        return output
+
+    def _fetch_and_format_img(self, img_url: HttpUrl) -> dict[str, str] | None:
+        try:
+            response = requests.get(str(img_url))
+            response.raise_for_status()
+            return {"type": "image_url", "image_url": str(img_url)}
+
+        except Exception as e:
+            logger.info(f"loading img_url '{img_url}' failed with {e}")
+            return None
 
 
 class StudentsCHListing(BaseListing):
