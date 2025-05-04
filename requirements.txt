@@ -1,5 +1,14 @@
 beautifulsoup4==4.13.4
 browser_use==0.1.41
-langchain_google_genai==2.1.2
-playwright==1.51.0
+langchain_google_genai==2.1.4
+loguru==0.7.3
+pandas==2.2.3
+polyline==2.0.2
+pydantic==2.11.4
+pydeck==0.9.1
 python-dotenv==1.1.0
+pytz==2024.2
+Requests==2.32.3
+streamlit==1.44.1
+tinydb==4.8.2
+tqdm==4.67.1
