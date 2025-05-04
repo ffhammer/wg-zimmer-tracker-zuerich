@@ -14,6 +14,7 @@ from src.models import (
     WEBSITE_TO_MODEL,
     BaseListing,
     DataBaseUpdate,
+    ExampleDraft,
     StudentsCHListing,
     Webiste,
     WGZimmerCHListing,
@@ -25,8 +26,9 @@ MAX_GEO_REQEUSTS_PER_MINUTE = 33
 
 db = TinyDB(DB_FILE, indent=4, ensure_ascii=False)
 listings_table = db.table("listings")
-updates_date = db.table("updates")
-ListingQuery = Query()
+updates_table = db.table("updates")
+drafts_table = db.table("drafts")
+query = Query()
 
 
 def to_json_serialiable(dic: dict) -> dict:
@@ -41,11 +43,11 @@ def to_json_serialiable(dic: dict) -> dict:
 
 def get_listing_by_url(url: str) -> Optional[BaseListing]:
     """Holt ein spezifisches Listing anhand seiner URL."""
-    result = listings_table.get(ListingQuery.url == url)
+    result = listings_table.get(query.url == url)
     if result:
         try:
             # Manually handle potential type errors during conversion
-            return BaseListing(**result)
+            return load_correct(result)
         except Exception as e:
             logger.error(
                 f"Failed to parse listing from DB for URL {url}: {e}. Data: {result}"
@@ -69,7 +71,7 @@ def upsert_listings(
     insert_urls = []
 
     for url in urls:
-        existing_doc = listings_table.get(ListingQuery.url == str(url))
+        existing_doc = listings_table.get(query.url == str(url))
         if existing_doc:
             model = load_correct(existing_doc)
             model.update(now)
@@ -107,8 +109,8 @@ def insert(urls: list[HttpUrl], now: datetime, website: Webiste):
     return False
 
 
-def load_correct(jsons: str) -> WGZimmerCHListing | StudentsCHListing | WokoListing:
-    return WEBSITE_TO_MODEL[jsons["website"]].model_validate(jsons)
+def load_correct(json) -> WGZimmerCHListing | StudentsCHListing | WokoListing:
+    return WEBSITE_TO_MODEL[json["website"]].model_validate(json)
 
 
 def update(scraped, url_str, existing_doc, now):
@@ -128,13 +130,13 @@ def mark_listings_as_deleted(urls: list[HttpUrl], website: Webiste) -> int:
 
     deleted_count = 0
     active_listings_in_db = listings_table.search(
-        ListingQuery.status == "active" and ListingQuery.website == website
+        (query.status == "active") & (query.website == website)
     )
     for listing_doc in active_listings_in_db:
         if listing_doc.get("url") not in active_urls_in_fetch:
             try:
                 listings_table.update(
-                    tinyset("status", "deleted"), ListingQuery.url == listing_doc["url"]
+                    tinyset("status", "deleted"), query.url == listing_doc["url"]
                 )
                 deleted_count += 1
                 logger.debug(f"Marked listing as deleted: {listing_doc['url']}")
@@ -151,7 +153,7 @@ def get_all_listings_stored(include_deleted=False) -> List[BaseListing]:
     if include_deleted:
         results = listings_table.all()
     else:
-        results = listings_table.search(ListingQuery.status == "active")
+        results = listings_table.search(query.status == "active")
 
     return [load_correct(doc) for doc in results]
 
@@ -162,7 +164,7 @@ def update_listing_user_status(
     """Aktualisiert den 'gesehen' oder 'gemerkt' Status eines Listings."""
     logger.debug(f"Updating DB: set {field}={value} for url={url}")
     try:
-        listings_table.update({field: value}, ListingQuery.url == url)
+        listings_table.update({field: value}, query.url == url)
     except Exception as e:
         logger.error(f"Error updating user status for {url}: {e}")
 
@@ -180,15 +182,34 @@ def update_database(
         date=now,
     )
     logger.success(f"Successfully updated {website}")
-    updates_date.insert(to_json_serialiable(status.model_dump()))
+    updates_table.insert(to_json_serialiable(status.model_dump()))
     return status
 
 
 def get_last_update(website: Webiste) -> Optional[DataBaseUpdate]:
     sofar = [
         DataBaseUpdate.model_validate(i)
-        for i in updates_date.search(Query().website == website)
+        for i in updates_table.search(Query().website == website)
     ]
     if not sofar:
         return
     return max(sofar, key=lambda x: x.date)
+
+
+def save_draft(draft: ExampleDraft) -> None:
+    logger.debug(f"saving draft for {draft.listing_url}")
+    drafts_table.remove(query.listing_url == draft.listing_url)
+    drafts_table.insert(to_json_serialiable(draft.model_dump()))
+
+
+def load_saved_draft_listing_pairs() -> list[tuple[BaseListing, ExampleDraft]]:
+    output = []
+    for draft in drafts_table.all():
+        draft = ExampleDraft.model_validate(draft)
+
+        listing = get_listing_by_url(str(draft.listing_url))
+        if listing:
+            output.append((listing, draft))
+        else:
+            logger.error(f"Could not find listing {draft.listing_url}")
+    return output

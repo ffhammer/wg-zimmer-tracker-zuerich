@@ -4,9 +4,10 @@ import pandas as pd
 import pydeck as pdk
 import streamlit as st
 
+from src.database import save_draft
 from src.eth_location import ETH_LOCATION
 from src.generate_draft import generate_draft, get_personal_information
-from src.models import BaseListing
+from src.models import BaseListing, ExampleDraft
 from src.render.utils import handle_status_update
 
 
@@ -172,3 +173,11 @@ def render_detail_page(all_listings: list[BaseListing]) -> None:
         value=f"Personal Information {get_personal_information()}\nListings information {detail.to_llm_input(include_images=False)}",
         height=500,
     )
+
+    final_draft = st.text_area(
+        "Final Draft",
+        value="",
+        height=500,
+    )
+    if st.button("Save Final Draft"):
+        save_draft(ExampleDraft(listing_url=detail.url, content=final_draft))

@@ -1,9 +1,11 @@
+import json
 import os
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from src.database import load_saved_draft_listing_pairs
 from src.logger import logger
 from src.models import BaseListing
 
@@ -24,12 +26,12 @@ model = ChatGoogleGenerativeAI(
 )
 
 STANDARD_SYSTEM_PROMPT: str = """
-You are helping Felix generate a draft for a new listing in Zürich. 
-First, incorporate his personal background, then include the listing details and images.
-Match the language of the listing: German for German listings, English for English listings.
-Emphasize Felix's key traits to appeal to landlords.
-Only return the draft nothing else! 
-Really stay close to my example draft, in terms of overall style and length!!!
+You are assisting Felix in crafting a compelling draft for a new listing in Zürich.
+Begin by incorporating his personal background, followed by the listing details and images.
+Adapt the language to match the listing: use German for German listings and English for English listings.
+Highlight Felix's key qualities to make a strong impression on landlords.
+Ensure your response aligns with the style demonstrated in the provided examples, tailoring it to suit each specific listing.
+Return only the draft, with no additional commentary or content.
 """
 
 
@@ -43,11 +45,24 @@ def generate_draft(
     user_msg = HumanMessage(
         content=[{"type": "text", "text": get_personal_information()}]
     )
+
+    example_pairs = load_saved_draft_listing_pairs()
+    logger.debug(f"Incorporating {len(example_pairs)} examples")
+    examples = "Example Drafts:\n"
+    for example_listing, example_draft in example_pairs:
+        examples += (
+            f"""\nListing: {json.dumps(example_listing.data_for_llm())}
+        Message: {example_draft.content}\n"""
+            + "-" * 100
+        )
+
+    examples = HumanMessage(content=examples)
+
     listing_msg = HumanMessage(
         content=listing.to_llm_input(include_images=include_imgs)
     )
     inputs_tokens, output_tokens = 0, 0
-    for i in model.stream([system_msg, user_msg, listing_msg]):
+    for i in model.stream([system_msg, examples, user_msg, listing_msg]):
         inputs_tokens += i.usage_metadata["input_tokens"]
         output_tokens += i.usage_metadata["output_tokens"]
         yield i.content

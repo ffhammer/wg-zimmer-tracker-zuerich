@@ -137,21 +137,14 @@ class BaseListing(BaseModel):
         """Format listing data for LLM input."""
 
         # Collect relevant fields
-        data: dict[str, str] = {}
-        for attr in (
-            "beschreibung",
-            "größe_in_m2",
-            "datum_ab_frei",
-            "datum_frei_bis",
-            "miete",
-        ) + tuple(self.additional_fields):
-            val = getattr(self, attr, None)
-            if val is not None:
-                data[attr] = val.isoformat() if hasattr(val, "isoformat") else str(val)
+        data = self.data_for_llm()
 
         # Primary text block
         output: list[dict[str, str]] = [
-            {"type": "text", "text": json.dumps(data, ensure_ascii=False)}
+            {
+                "type": "text",
+                "text": "Listing to reply to:\n" + json.dumps(data, ensure_ascii=False),
+            }
         ]
 
         if not include_images:
@@ -164,6 +157,20 @@ class BaseListing(BaseModel):
                 output.append(enc)
 
         return output
+
+    def data_for_llm(self):
+        data: dict[str, str] = {}
+        for attr in (
+            "beschreibung",
+            "größe_in_m2",
+            "datum_ab_frei",
+            "datum_frei_bis",
+            "miete",
+        ) + tuple(self.additional_fields):
+            val = getattr(self, attr, None)
+            if val is not None:
+                data[attr] = val.isoformat() if hasattr(val, "isoformat") else str(val)
+        return data
 
     def _fetch_and_format_img(self, img_url: HttpUrl) -> dict[str, str] | None:
         try:
