@@ -109,8 +109,10 @@ max_bike_min = st.sidebar.slider("Max. Fahrrad-Minuten", 0, 60, 60)
 
 # User Status Filter
 filter_not_seen = st.sidebar.checkbox("Nur nicht gesehene anzeigen", value=False)
-filter_not_bookmarked = st.sidebar.checkbox("Nur nicht gemerkte anzeigen", value=False)
-filter_only_bookmarked = st.sidebar.checkbox("Nur gemerkte anzeigen", value=False)
+filter_not_bookmarked = st.sidebar.checkbox(
+    "Nur nicht kontaktiert anzeigen", value=True
+)
+filter_only_bookmarked = st.sidebar.checkbox("Nur kontaktiert anzeigen", value=False)
 
 st.sidebar.markdown("---")
 
@@ -130,6 +132,13 @@ sort_option = st.sidebar.selectbox(
 
 
 # --- Main Area ---
+# If a listing is selected, show detail view and bail out
+
+if st.session_state.selected_id:
+    # grab the one listing
+    render_detail_page(all_listings=all_listings)
+
+    st.stop()
 
 # Display Last Update Info
 st.header("Letztes DB Update")
@@ -154,14 +163,6 @@ st.markdown("---")
 
 st.title("Verfügbare WG Zimmer")
 
-
-# If a listing is selected, show detail view and bail out
-
-if st.session_state.selected_id:
-    # grab the one listing
-    render_detail_page(all_listings=all_listings)
-
-    st.stop()
 
 # Apply Filters
 filtered_listings = all_listings

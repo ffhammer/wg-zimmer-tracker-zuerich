@@ -125,7 +125,7 @@ def render_detail_page(all_listings: list[BaseListing]) -> None:
         )
     with two:
         st.checkbox(
-            "Gemerkt",
+            "Kontaktiert",
             value=detail.gemerkt,
             key=f"gemerkt_{detail.id}",  # Unique key
             on_change=handle_status_update,

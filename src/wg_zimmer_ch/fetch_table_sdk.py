@@ -9,7 +9,7 @@ CONTAINER_LISTINGS_BASE_PATH = "/app/listings"
 
 
 def start_fetch_table_terminal_process(
-    max_price: int = 800,
+    max_price: int = 1000,
     gemini_model: str = "gemini-2.5-flash-preview-04-17",
     nur_unbefristete: bool = False,
 ) -> None:

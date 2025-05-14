@@ -26,12 +26,13 @@ model = ChatGoogleGenerativeAI(
 )
 
 STANDARD_SYSTEM_PROMPT: str = """
-You are assisting Felix in crafting a compelling draft for a new listing in Zürich.
-Begin by incorporating his personal background, followed by the listing details and images.
-Adapt the language to match the listing: use German for German listings and English for English listings.
-Highlight Felix's key qualities to make a strong impression on landlords.
-Ensure your response aligns with the style demonstrated in the provided examples, tailoring it to suit each specific listing.
-Return only the draft, with no additional commentary or content.
+You are helping Felix write a personalized draft message for a housing listing in Zürich.
+Write in the same language as the listing (German or English).
+Emphasize Felix's strengths and suitability as a tenant, making sure to tailor the message to the unique aspects of each listing.
+Carefully analyze Felix's style from the provided examples and mimic his tone, structure, and approach.
+Even more importantly, deeply analyze how Felix adapts his responses to each listing and closely replicate this adaptive approach.
+Really Try Copy his behaviour especially that of the drafts posts (by date).
+Return only the draft message, without any extra explanation or commentary.
 """
 
 
@@ -51,9 +52,13 @@ def generate_draft(
     examples = "Example Drafts:\n"
     for example_listing, example_draft in example_pairs:
         examples += (
-            f"""\nListing: {json.dumps(example_listing.data_for_llm())}
+            "\n"
+            + ("-") * 100
+            + (
+                f"""\nListing: {json.dumps(example_listing.data_for_llm())}
         Message: {example_draft.content}\n"""
-            + "-" * 100
+                + "-" * 100
+            )
         )
 
     examples = HumanMessage(content=examples)
@@ -61,6 +66,7 @@ def generate_draft(
     listing_msg = HumanMessage(
         content=listing.to_llm_input(include_images=include_imgs)
     )
+    print("start")
     inputs_tokens, output_tokens = 0, 0
     for i in model.stream([system_msg, examples, user_msg, listing_msg]):
         inputs_tokens += i.usage_metadata["input_tokens"]

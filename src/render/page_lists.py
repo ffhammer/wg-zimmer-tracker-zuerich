@@ -75,7 +75,7 @@ def render_page_lists(filtered_listings: list[BaseListing]):
                     )
                 with action_col2:
                     st.checkbox(
-                        "Gemerkt",
+                        "Kontaktiert",
                         value=listing.gemerkt,
                         key=f"gemerkt_{listing.id}",  # Unique key
                         on_change=handle_status_update,
