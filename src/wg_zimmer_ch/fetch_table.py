@@ -11,7 +11,7 @@ from urllib.parse import urljoin
 
 import pytz
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
+from google.cloud import storage
 from playwright.sync_api import Playwright, sync_playwright
 from tqdm import tqdm
 
@@ -22,14 +22,6 @@ path_to_extension = "uBlock0.chromium"
 user_data_dir = "chromium-user-data-dir"
 
 
-load_dotenv()
-
-# LOG_FILE_PATH = "/app/app.log"  # Log file inside the container
-# SAVE_DIR = "wg-zimmer-listings"
-
-LOG_FILE_PATH = "app.log"  # Log file inside the container
-SAVE_DIR = "wg-zimmer-listings"
-
 LOG_LEVEL = logging.INFO
 
 # --- Configure Logging to File ---
@@ -37,9 +29,6 @@ log_formatter = logging.Formatter(
     "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-# File Handler
-file_handler = logging.FileHandler(LOG_FILE_PATH, mode="a")  # 'a' for append
-file_handler.setFormatter(log_formatter)
 
 # Get root logger and add the file handler
 root_logger = logging.getLogger()
@@ -47,8 +36,6 @@ root_logger.setLevel(LOG_LEVEL)
 # Remove existing handlers if basicConfig was somehow called before or by libraries implicitly
 for handler in root_logger.handlers[:]:
     root_logger.removeHandler(handler)
-# Add our file handler
-root_logger.addHandler(file_handler)
 
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(log_formatter)
@@ -159,6 +146,8 @@ def main(playwright: Playwright) -> List[str]:
     page.locator('a.sort[href*="orderDir=desc"]:has-text("Ab dem")').click()
 
     # Initial fetch to determine total pages
+    time.sleep(random.uniform(1, 2))
+
     html = page.content()
     current, total, links = parse_wgzimmer_search_results(html)
     listings.extend(links)
@@ -186,7 +175,7 @@ def main(playwright: Playwright) -> List[str]:
         progress.n = current if current else progress.n + 1
         progress.refresh()
 
-        if current >= total:
+        if current >= total or current == 2:
             break
 
         btn = page.locator("div.skip a.next").first
@@ -201,8 +190,7 @@ def main(playwright: Playwright) -> List[str]:
 if __name__ == "__main__":
     logging.info("Entering main execution block.")
 
-    export_path = os.path.join(SAVE_DIR, datetime.now(TIME_ZONE).isoformat() + ".json")
-    os.makedirs(SAVE_DIR, exist_ok=True)
+    export_path = os.path.join(datetime.now(TIME_ZONE).isoformat() + ".json")
 
     try:
         with sync_playwright() as playwright:
@@ -215,3 +203,7 @@ if __name__ == "__main__":
 
     with open(export_path, "w") as f:
         json.dump(listings, f, indent=4)
+    client = storage.Client(project=os.environ["GOOGLE_CLOUD_PROJECT"])
+    bucket = client.bucket(os.environ["GCS_BUCKET"])
+    blob = bucket.blob("latest/listings.json")
+    blob.upload_from_filename(export_path)
