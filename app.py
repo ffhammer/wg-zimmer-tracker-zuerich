@@ -92,7 +92,7 @@ price_range = st.sidebar.slider(
     max_value=int(max_slider_limit + 100),  # Add some buffer
     value=(
         0,
-        int(max_db_price if max_db_price > 0 else 1000),
+        int(max_db_price if max_db_price > 0 else 1500),
     ),  # Default: 0 to max found or 1000
     step=50,
 )
