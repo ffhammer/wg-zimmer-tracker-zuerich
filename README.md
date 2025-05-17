@@ -29,15 +29,30 @@ Finde und verwalte WG-Zimmer in Zürich – automatisch und visuell.
 
 ---
 
-## 🧠 `wgzimmer.ch` scrapen mit Docker & browser-use
+## 🧠 `wgzimmer.ch` scrapen mit Docker & Playwright
 
-Die Seite `wgzimmer.ch` verwendet interaktives JS + Google Captcha → wir brauchen einen echten Browser.
+Die Seite `wgzimmer.ch` verwendet interaktives JavaScript und Captchas, daher benötigen wir einen echten Browser.
 
-Wir nutzen [`browser-use`](https://github.com/browser-use/browser-use) in einem separaten Docker-Container, damit:
+Wir verwenden [`Playwright`](https://playwright.dev/) in einem Docker-Container, um:
 
-- das Ganze Hintergrund läuft
-- der lokale Bildschirm nicht blockiert wird
-- alles automatisch und ohne manuellen Eingriff funktioniert
+- den kompletten Ablauf im Hintergrund auszuführen
+- den lokalen Bildschirm nicht zu blockieren
+- automatisch alle Wohnungsangebote zu scrapen
+- Erweiterungen wie `uBlock` zur Captcha-Vermeidung zu laden
+
+### Voraussetzungen
+
+- Docker & Docker Compose installiert
+- Python 3.12
+- [uBlock](https://objects.githubusercontent.com/github-production-release-asset-2e65be/33263118/81b2267f-a192-450a-aad3-69e6ec986b11?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=releaseassetproduction%2F20250517%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250517T204142Z&X-Amz-Expires=300&X-Amz-Signature=441e8d5187d584267d8baa3456bece29f441bd1fe6db1f7a674a036c7d7e352b&X-Amz-SignedHeaders=host&response-content-disposition=attachment%3B%20filename%3DuBlock0_1.64.0.chromium.zip&response-content-type=application%2Foctet-stream)
+
+### Starten
+
+```bash
+docker-compose run --build --rm --service-ports app --nur_unbefristete
+```
+
+Logs und Ergebnisse werden in `app.log` und dem Verzeichnis `wg-zimmer-listings/` gespeichert.
 
 ---
 
@@ -65,7 +80,6 @@ pip install -r requirements.txt
 ```dotenv
 LOCATIONIQ_API_KEY=dein_LOCATIONIQ_API_KEY
 OPENROUTESERVICE_API_KEY=dein_openrouteservice_key
-GEMINI_API_KEY=optional
 TIME_ZONE=Europe/Zurich
 ```
 

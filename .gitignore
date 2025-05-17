@@ -4,7 +4,8 @@ addblockplus
 db.json
 wg-zimmer-listings
 info_about_me.md
-
+uBlock0.chromium
+chromium-user-data-dir
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

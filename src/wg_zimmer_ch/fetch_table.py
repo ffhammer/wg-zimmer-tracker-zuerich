@@ -1,32 +1,68 @@
-import argparse
-import asyncio
 import json
 import logging
 import os
+import random
 import re
 import sys
+import time
 from datetime import datetime
 from typing import List, Optional, Tuple
 from urllib.parse import urljoin
 
 import pytz
-from browser_use import (
-    ActionResult,
-    Agent,
-    Browser,
-    BrowserConfig,
-    BrowserContextConfig,
-    Controller,
-)
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
-from pydantic import BaseModel
+from playwright.sync_api import Playwright, sync_playwright
+from tqdm import tqdm
 
 TIME_ZONE = pytz.timezone(os.environ["TIME_ZONE"])
 
 
-# --- Main Parsing Function ---
+path_to_extension = "uBlock0.chromium"
+user_data_dir = "chromium-user-data-dir"
+
+
+load_dotenv()
+
+# LOG_FILE_PATH = "/app/app.log"  # Log file inside the container
+# SAVE_DIR = "wg-zimmer-listings"
+
+LOG_FILE_PATH = "app.log"  # Log file inside the container
+SAVE_DIR = "wg-zimmer-listings"
+
+LOG_LEVEL = logging.INFO
+
+# --- Configure Logging to File ---
+log_formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
+# File Handler
+file_handler = logging.FileHandler(LOG_FILE_PATH, mode="a")  # 'a' for append
+file_handler.setFormatter(log_formatter)
+
+# Get root logger and add the file handler
+root_logger = logging.getLogger()
+root_logger.setLevel(LOG_LEVEL)
+# Remove existing handlers if basicConfig was somehow called before or by libraries implicitly
+for handler in root_logger.handlers[:]:
+    root_logger.removeHandler(handler)
+# Add our file handler
+root_logger.addHandler(file_handler)
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(log_formatter)
+root_logger.addHandler(console_handler)
+
+sys.stdout.reconfigure(line_buffering=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stdout,
+)
+
+
 def parse_wgzimmer_search_results(
     html_content: str, base_url: str = "https://www.wgzimmer.ch"
 ) -> Tuple[Optional[int], Optional[int], List[str]]:
@@ -92,151 +128,90 @@ def parse_wgzimmer_search_results(
     return current_page, total_pages, listings
 
 
-load_dotenv()
+def main(playwright: Playwright) -> List[str]:
+    listings: List[str] = []
 
-LOG_FILE_PATH = "/app/app.log"  # Log file inside the container
-SAVE_DIR = "/app/wg-zimmer-listings"
-LOG_LEVEL = logging.INFO
-
-# --- Configure Logging to File ---
-log_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
-# File Handler
-file_handler = logging.FileHandler(LOG_FILE_PATH, mode="a")  # 'a' for append
-file_handler.setFormatter(log_formatter)
-
-# Get root logger and add the file handler
-root_logger = logging.getLogger()
-root_logger.setLevel(LOG_LEVEL)
-# Remove existing handlers if basicConfig was somehow called before or by libraries implicitly
-for handler in root_logger.handlers[:]:
-    root_logger.removeHandler(handler)
-# Add our file handler
-root_logger.addHandler(file_handler)
-
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setFormatter(log_formatter)
-root_logger.addHandler(console_handler)
-
-sys.stdout.reconfigure(line_buffering=True)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    stream=sys.stdout,
-)
-
-assert os.getenv("GEMINI_API_KEY"), "Missing GEMINI_API_KEY in environment."
-
-
-all_contents: List[str] = []
-
-
-class PageParam(BaseModel):
-    page_number: int
-
-
-controller = Controller()
-
-
-@controller.action("Saves Page Content", param_model=PageParam)
-async def save_content(params: PageParam, browser: Browser):
-    page = await browser.get_current_page()
-    content = await page.content()
-    all_contents.append(content)
-    return ActionResult(extracted_content="page content saved")
-
-
-browser = Browser(
-    config=BrowserConfig(
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir,
         headless=False,
-        disable_security=False,
-        keep_alive=True,
-        new_context_config=BrowserContextConfig(
-            keep_alive=True,
-            disable_security=False,
-        ),
+        args=[
+            f"--disable-extensions-except={path_to_extension}",
+            f"--load-extension={path_to_extension}",
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+            "--disable-gpu",
+            "--window-size=1920,1080",
+            "--disable-features=IsolateOrigins,site-per-process",
+        ],
     )
-)
+    page = context.pages[0]
+    page.wait_for_timeout(1000)
 
-
-async def main(
-    max_price: int,
-    region: str,
-    nur_unbefristete: bool,
-    llm,
-):
-    global all_contents
-    all_contents.clear()
-
-    task = f"""
-        First go to google.com and search 'www.wgzimmer.ch' manually.
-        Then click on www.wgzimmer.ch and navigate to 'ein freies zimmer suchen'
-        Now search for flats in {region} up to {max_price} CHF.
-    """
-    if nur_unbefristete:
-        task += " Only show 'Nur Unbefristete' offers."
-    task += " Skip through all and save all via save_content result. You don't need to scroll through them."
-    task += " When you encounter adds or pop ups, close them."
-
-    agent = Agent(
-        task=task,
-        llm=llm,
-        browser=browser,
-        controller=controller,
+    page.goto(
+        "https://www.wgzimmer.ch/de/wgzimmer/search/mate/ch/zurich-stadt.html",
     )
-    res = await agent.run()
+    time.sleep(random.uniform(3, 5))
+    # click "Ab dem" ascending
+    page.locator('a.sort[href*="orderDir=asc"]:has-text("Ab dem")').click()
+    # optional wait
+    time.sleep(random.uniform(1, 2))
+    # click "Ab dem" descending
+    page.locator('a.sort[href*="orderDir=desc"]:has-text("Ab dem")').click()
 
-    final_result: ActionResult = res.history[-1].result[-1]
-    logging.info(f"Final Result: {final_result}")
-    if not final_result.success:
-        raise ValueError("Agent failed.")
+    # Initial fetch to determine total pages
+    html = page.content()
+    current, total, links = parse_wgzimmer_search_results(html)
+    listings.extend(links)
 
-    contents = list(all_contents)
-    all_contents.clear()
-    return contents
+    if total is None:
+        logging.warning(
+            "Could not determine total number of pages. Progress bar will not be shown."
+        )
+        total = 1
+
+    progress = tqdm(
+        total=total, initial=current if current else 1, desc="Pages", unit="page"
+    )
+
+    while True:
+        time.sleep(random.uniform(1, 2))
+
+        html = page.content()
+        current, total, links = parse_wgzimmer_search_results(html)
+        listings.extend(links)
+        logging.info(
+            f"Parsed page {current} of {total} ({len(listings)} listings so far)"
+        )
+
+        progress.n = current if current else progress.n + 1
+        progress.refresh()
+
+        if current >= total:
+            break
+
+        btn = page.locator("div.skip a.next").first
+        btn.click()
+        page.wait_for_load_state("networkidle")
+
+    progress.close()
+    context.close()
+    return listings
 
 
 if __name__ == "__main__":
     logging.info("Entering main execution block.")
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--max_price", type=int, default=800)
-    parser.add_argument("--region", type=str, default="zürich stadt")
-    parser.add_argument(
-        "--gemini_model", type=str, default="gemini-2.5-flash-preview-04-17"
-    )
-    parser.add_argument(
-        "--nur_unbefristete",
-        action="store_true",
-    )
-    args = parser.parse_args()
-
-    llm = ChatGoogleGenerativeAI(model=args.gemini_model)
-
     export_path = os.path.join(SAVE_DIR, datetime.now(TIME_ZONE).isoformat() + ".json")
     os.makedirs(SAVE_DIR, exist_ok=True)
 
-    vals = asyncio.run(
-        main(
-            max_price=args.max_price,
-            region=args.region,
-            nur_unbefristete=args.nur_unbefristete,
-            llm=llm,
-        )
-    )
+    try:
+        with sync_playwright() as playwright:
+            listings = main(playwright)
+    except Exception as e:
+        logging.exception(f"Could not parse pages {e}")
+        sys.exit(1)
 
-    listings = []
-    for idx, content in enumerate(vals):
-        logging.info(f"Attempting to parse page {idx}")
-        try:
-            listings.extend(parse_wgzimmer_search_results(content)[-1])
-        except Exception as e:
-            logging.error(f"Failed to parse page {idx}: {e}")
+    logging.info(f"Succesfully found {len(listings)} new listings.")
 
     with open(export_path, "w") as f:
         json.dump(listings, f, indent=4)
-
-    logging.info(f"\n\n{'-' * 50}\nSuccessfully finished job!{'-' * 50}\n\n")

@@ -16,6 +16,9 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY src/wg_zimmer_ch/fetch_table.py fetch_table.py
 COPY entrypoint.sh .
 
+COPY uBlock0.chromium /app/uBlock0.chromium
+COPY chromium-user-data-dir /app/chromium-user-data-dir
+
 # Make entrypoint executable
 RUN chmod +x entrypoint.sh
 
