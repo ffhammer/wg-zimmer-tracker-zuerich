@@ -1,16 +1,13 @@
-import json
-import logging
 import os
 import random
 import re
-import sys
 import time
-from datetime import datetime
 from typing import List, Optional, Tuple
 from urllib.parse import urljoin
 
 import pytz
 from bs4 import BeautifulSoup
+from loguru import logger
 from playwright.sync_api import Playwright, sync_playwright
 from tqdm import tqdm
 
@@ -19,34 +16,6 @@ TIME_ZONE = pytz.timezone(os.environ["TIME_ZONE"])
 
 path_to_extension = "uBlock0.chromium"
 user_data_dir = "chromium-user-data-dir"
-
-
-LOG_LEVEL = logging.INFO
-
-# --- Configure Logging to File ---
-log_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
-
-# Get root logger and add the file handler
-root_logger = logging.getLogger()
-root_logger.setLevel(LOG_LEVEL)
-# Remove existing handlers if basicConfig was somehow called before or by libraries implicitly
-for handler in root_logger.handlers[:]:
-    root_logger.removeHandler(handler)
-
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setFormatter(log_formatter)
-root_logger.addHandler(console_handler)
-
-sys.stdout.reconfigure(line_buffering=True)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    stream=sys.stdout,
-)
 
 
 def parse_wgzimmer_search_results(
@@ -114,12 +83,12 @@ def parse_wgzimmer_search_results(
     return current_page, total_pages, listings
 
 
-def main(playwright: Playwright) -> List[str]:
+def fetch_function(playwright: Playwright) -> List[str]:
     listings: List[str] = []
 
     context = playwright.chromium.launch_persistent_context(
         user_data_dir,
-        headless=False,
+        headless=True,
         args=[
             f"--disable-extensions-except={path_to_extension}",
             f"--load-extension={path_to_extension}",
@@ -153,7 +122,7 @@ def main(playwright: Playwright) -> List[str]:
     listings.extend(links)
 
     if total is None:
-        logging.warning(
+        logger.warning(
             "Could not determine total number of pages. Progress bar will not be shown."
         )
         total = 1
@@ -168,7 +137,7 @@ def main(playwright: Playwright) -> List[str]:
         html = page.content()
         current, total, links = parse_wgzimmer_search_results(html)
         listings.extend(links)
-        logging.info(
+        logger.info(
             f"Parsed page {current} of {total} ({len(listings)} listings so far)"
         )
 
@@ -180,26 +149,17 @@ def main(playwright: Playwright) -> List[str]:
 
         btn = page.locator("div.skip a.next").first
         btn.click()
-        page.wait_for_load_state("networkidle")
+        time.sleep(random.uniform(1, 2))
 
     progress.close()
     context.close()
     return listings
 
 
-if __name__ == "__main__":
-    logging.info("Entering main execution block.")
-
-    export_path = os.path.join(datetime.now(TIME_ZONE).isoformat() + ".json")
-
+def fetch_table() -> list[str]:
     try:
         with sync_playwright() as playwright:
-            listings = main(playwright)
+            return fetch_function(playwright)
     except Exception as e:
-        logging.exception(f"Could not parse pages {e}")
-        sys.exit(1)
-
-    logging.info(f"Succesfully found {len(listings)} new listings.")
-
-    with open(export_path, "w") as f:
-        json.dump(listings, f, indent=4)
+        logger.exception(f"Error fetching wg-zimmer.ch {e}")
+        return []

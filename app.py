@@ -13,7 +13,6 @@ from src.refresh import refresh_all
 from src.render.big_map import render_map
 from src.render.detail_page import render_detail_page
 from src.render.page_lists import render_page_lists
-from src.wg_zimmer_ch import start_fetch_table_terminal_process
 
 st.set_page_config(layout="wide", page_title="WG Zimmer Tracker")
 
@@ -44,15 +43,6 @@ if st.sidebar.button("Neue Daten fetchen & DB aktualisieren"):
         except Exception as e:
             st.sidebar.error(f"Fehler beim Datenbank-Update: {e}")
 
-if st.sidebar.button("Neue wgzimmer.ch Inserate fetchen (öffnet Terminal)"):
-    try:
-        start_fetch_table_terminal_process()
-        st.sidebar.success("Fetch-Prozess im Terminal gestartet.")
-        st.sidebar.info(
-            "Bitte warte bis der Fetch abgeschlossen ist und klicke dann auf 'Neue Daten fetchen'."
-        )
-    except Exception as e:
-        st.sidebar.error(f"Fehler beim Starten des Fetch-Prozesses: {e}")
 
 st.sidebar.markdown("---")
 

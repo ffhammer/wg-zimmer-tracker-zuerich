@@ -29,39 +29,21 @@ Finde und verwalte WG-Zimmer in Zürich – automatisch und visuell.
 
 ---
 
-## 🧠 `wgzimmer.ch` scrapen mit Docker & Playwright
+## 🧠 `wgzimmer.ch` scrapen mit Playwright
 
 Die Seite `wgzimmer.ch` verwendet interaktives JavaScript und Captchas, daher benötigen wir einen echten Browser.
 
-Wir verwenden [`Playwright`](https://playwright.dev/) in einem Docker-Container, um:
+Wir verwenden [`Playwright`](https://playwright.dev/)
 
 - den kompletten Ablauf im Hintergrund auszuführen
 - den lokalen Bildschirm nicht zu blockieren
 - automatisch alle Wohnungsangebote zu scrapen
 - Erweiterungen wie `uBlock` zur Captcha-Vermeidung zu laden
 
-### Voraussetzungen
-
-- Docker & Docker Compose installiert
 - Python 3.12
 - [uBlock](https://objects.githubusercontent.com/github-production-release-asset-2e65be/33263118/81b2267f-a192-450a-aad3-69e6ec986b11?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=releaseassetproduction%2F20250517%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250517T204142Z&X-Amz-Expires=300&X-Amz-Signature=441e8d5187d584267d8baa3456bece29f441bd1fe6db1f7a674a036c7d7e352b&X-Amz-SignedHeaders=host&response-content-disposition=attachment%3B%20filename%3DuBlock0_1.64.0.chromium.zip&response-content-type=application%2Foctet-stream)
 
-### Starten
-
-```bash
-docker-compose run --build --rm --service-ports app --nur_unbefristete
-```
-
-Logs und Ergebnisse werden in `app.log` und dem Verzeichnis `wg-zimmer-listings/` gespeichert.
-
----
-
 ## 🚀 Installation
-
-### Voraussetzungen
-
-- Docker
-- Docker Compose
 
 ### Setup
 
@@ -69,7 +51,7 @@ Logs und Ergebnisse werden in `app.log` und dem Verzeichnis `wg-zimmer-listings/
 git clone https://github.com/ffhammer/wg-zimmer-tracker-zuerich.git
 cd wg-tracker
 cp .env.example .env # API Keys eintragen
-docker-compose up --build
+
 pip install -r requirements.txt
 ```
 
@@ -87,7 +69,6 @@ TIME_ZONE=Europe/Zurich
 
 - 🌍 **Geocoding:** [LOCATIONIQ](https://de.locationiq.com//)
 - 🧭 **Routing:** [OpenRouteService](https://openrouteservice.org/)
-- 🤖 **Optional – AI:** [Gemini (Google AI)](https://ai.google.dev/)
 
 ---
 
