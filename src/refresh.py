@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 import pytz
+from loguru import logger
 
 from src import students_ch, wg_zimmer_ch, woko
 from src.database import update_database
@@ -11,6 +12,8 @@ TIME_ZONE = pytz.timezone(os.environ["TIME_ZONE"])
 
 
 def refresh_all() -> dict[Webiste, DataBaseUpdate]:
+    logger.info("Starting to refresh all")
+
     now = datetime.now()
     statuses: dict[Webiste, DataBaseUpdate] = {}
 

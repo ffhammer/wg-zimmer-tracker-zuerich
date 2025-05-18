@@ -84,7 +84,7 @@ def parse_wgzimmer_search_results(
 
 
 def fetch_function(playwright: Playwright) -> List[str]:
-    listings: List[str] = []
+    listings: set[str] = set()
 
     context = playwright.chromium.launch_persistent_context(
         user_data_dir,
@@ -119,7 +119,7 @@ def fetch_function(playwright: Playwright) -> List[str]:
 
     html = page.content()
     current, total, links = parse_wgzimmer_search_results(html)
-    listings.extend(links)
+    listings.update(links)
 
     if total is None:
         logger.warning(
@@ -136,7 +136,8 @@ def fetch_function(playwright: Playwright) -> List[str]:
 
         html = page.content()
         current, total, links = parse_wgzimmer_search_results(html)
-        listings.extend(links)
+        listings.update(links)
+
         logger.info(
             f"Parsed page {current} of {total} ({len(listings)} listings so far)"
         )
@@ -153,7 +154,7 @@ def fetch_function(playwright: Playwright) -> List[str]:
 
     progress.close()
     context.close()
-    return listings
+    return list(listings)
 
 
 def fetch_table() -> list[str]:
