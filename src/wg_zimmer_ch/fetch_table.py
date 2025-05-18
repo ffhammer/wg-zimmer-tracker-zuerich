@@ -11,7 +11,6 @@ from urllib.parse import urljoin
 
 import pytz
 from bs4 import BeautifulSoup
-from google.cloud import storage
 from playwright.sync_api import Playwright, sync_playwright
 from tqdm import tqdm
 
@@ -126,6 +125,7 @@ def main(playwright: Playwright) -> List[str]:
             f"--load-extension={path_to_extension}",
             "--disable-blink-features=AutomationControlled",
             "--no-sandbox",
+            "--disable-setuid-sandbox",
             "--disable-gpu",
             "--window-size=1920,1080",
             "--disable-features=IsolateOrigins,site-per-process",
@@ -175,7 +175,7 @@ def main(playwright: Playwright) -> List[str]:
         progress.n = current if current else progress.n + 1
         progress.refresh()
 
-        if current >= total or current == 2:
+        if current >= total:
             break
 
         btn = page.locator("div.skip a.next").first
@@ -203,7 +203,3 @@ if __name__ == "__main__":
 
     with open(export_path, "w") as f:
         json.dump(listings, f, indent=4)
-    client = storage.Client(project=os.environ["GOOGLE_CLOUD_PROJECT"])
-    bucket = client.bucket(os.environ["GCS_BUCKET"])
-    blob = bucket.blob("latest/listings.json")
-    blob.upload_from_filename(export_path)

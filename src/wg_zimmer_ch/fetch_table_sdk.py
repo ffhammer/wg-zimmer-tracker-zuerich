@@ -16,6 +16,7 @@ def start_fetch_table_terminal_process() -> None:
         "&&",
         "docker-compose",
         "run",
+        "--rm",
         "--build",
         "--service-ports",  # Keep this if you need ports, otherwise remove
         SERVICE_NAME,

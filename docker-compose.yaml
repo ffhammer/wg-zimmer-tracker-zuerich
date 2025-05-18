@@ -1,0 +1,9 @@
+services:
+  app:
+    build: .
+      # platforms:
+      #   - linux/amd64 # not if fails
+    environment:
+      - TIME_ZONE=Europe/Berlin
+      - PYTHONUNBUFFERED=1
+    # entrypoint: ["bash"]

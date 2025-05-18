@@ -1,6 +1,7 @@
 #!/bin/bash
 # Use bash for better signal handling and process management
 set -euo pipefail # Exit on error, unset variable, or pipe failure
+rm -rf /app/chromium-user-data-dir/Singleton*
 
 LOGFILE="/app/app.log"
 
