@@ -172,7 +172,10 @@ def update_listing_user_status(
 def update_database(
     urls: list[HttpUrl], now: datetime, website: Webiste
 ) -> DataBaseUpdate:
-    n_deleted = mark_listings_as_deleted(urls, website=website)
+    if website != Webiste.wg_zimmer_ch:
+        n_deleted = mark_listings_as_deleted(urls, website=website)
+    else:
+        n_deleted = 0
     new_count, updated_count = upsert_listings(urls, now, website)
     status = DataBaseUpdate(
         website=website,

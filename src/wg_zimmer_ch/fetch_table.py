@@ -1,21 +1,47 @@
+import math
 import os
 import random
 import re
 import time
+from datetime import date, datetime
 from typing import List, Optional, Tuple
 from urllib.parse import urljoin
 
-import pytz
 from bs4 import BeautifulSoup
 from loguru import logger
-from playwright.sync_api import Playwright, sync_playwright
-from tqdm import tqdm
-
-TIME_ZONE = pytz.timezone(os.environ["TIME_ZONE"])
-
+from playwright.sync_api import Locator, Page, sync_playwright
 
 path_to_extension = "uBlock0.chromium"
+
+assert os.path.exists(path_to_extension)
 user_data_dir = "chromium-user-data-dir"
+
+
+def inject_fake_cursor(page: Page) -> None:
+    page.add_script_tag(
+        content="""
+      (function(){
+        const style = document.createElement('style');
+        style.textContent = `
+          #fake-cursor {
+            width: 20px; height: 20px;
+            background: url('data:image/svg+xml;utf8,\
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20">\
+                <circle cx="10" cy="10" r="5" fill="red"/></svg>') no-repeat center;
+            position: absolute; pointer-events: none; z-index: 999999;
+          }
+        `;
+        document.head.appendChild(style);
+        const cursor = document.createElement('div');
+        cursor.id = 'fake-cursor';
+        document.body.appendChild(cursor);
+        window.addEventListener('mousemove', e => {
+          cursor.style.left = e.clientX + 'px';
+          cursor.style.top  = e.clientY + 'px';
+        });
+      })();
+    """
+    )
 
 
 def parse_wgzimmer_search_results(
@@ -83,84 +109,168 @@ def parse_wgzimmer_search_results(
     return current_page, total_pages, listings
 
 
-def fetch_function(playwright: Playwright) -> List[str]:
-    listings: set[str] = set()
+def random_mouse_move(
+    page: Page,
+    start: tuple[int, int],
+    end: tuple[int, int],
+    steps: int = 30,
+    minor_axis_ratio: float = 0.4,
+) -> None:
+    x1, y1 = start
+    x2, y2 = end
+    dx, dy = x2 - x1, y2 - y1
+    dist = math.hypot(dx, dy)
+    ux, uy = dx / dist, dy / dist
+    vx, vy = -uy, ux
+    a = dist / 2
+    b = a * minor_axis_ratio
+    mid_x, mid_y = (x1 + x2) / 2, (y1 + y2) / 2
 
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        headless=True,
-        args=[
-            f"--disable-extensions-except={path_to_extension}",
-            f"--load-extension={path_to_extension}",
-            "--disable-blink-features=AutomationControlled",
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-gpu",
-            "--window-size=1920,1080",
-            "--disable-features=IsolateOrigins,site-per-process",
-        ],
-    )
-    page = context.pages[0]
-    page.wait_for_timeout(1000)
+    for i in range(steps + 1):
+        t = i / steps
+        theta = math.pi * (1 - t)
+        px = mid_x + ux * a * math.cos(theta) + vx * b * math.sin(theta)
+        py = mid_y + uy * a * math.cos(theta) + vy * b * math.sin(theta)
+        page.mouse.move(px, py)
 
-    page.goto(
-        "https://www.wgzimmer.ch/de/wgzimmer/search/mate/ch/zurich-stadt.html",
+
+def move_to_and_click(
+    page: Page,
+    locator: Locator,
+    start: tuple[float, float],
+) -> tuple[float, float]:
+    bb = locator.bounding_box()
+    pos = (bb["x"] + bb["width"] / 2, bb["y"] + bb["height"] / 2)
+
+    random_mouse_move(page, start, pos)
+    page.mouse.click(*pos)
+
+    return pos
+
+
+def last_aufgegeben_date(html_content: str) -> Optional[date]:
+    soup = BeautifulSoup(html_content, "html.parser")
+    items = soup.select(
+        "ul#search-result-list li.search-result-entry.search-mate-entry"
     )
-    time.sleep(random.uniform(3, 5))
+    if not items:
+        return None
+    last = items[-1]
+    strong = last.select_one("div.create-date strong")
+    if not strong:
+        return None
+    text = strong.get_text(strip=True)  # e.g. "18.5.2025"
+    return datetime.strptime(text, "%d.%m.%Y").date()
+
+
+def open_listings_page(
+    parse_wgzimmer_search_results, random_mouse_move, move_to_and_click, page
+):
+    logger.info("opening page")
+    page.goto("https://www.wgzimmer.ch/wgzimmer/search/mate.html")
+    inject_fake_cursor(page)
+    # inject_fake_cursor(page)
+
+    logger.info("initial random movements")
+    time.sleep(random.uniform(1.5, 3.5))
+    w, h = page.viewport_size["width"], page.viewport_size["height"]
+    mouse_pos = (random.uniform(w * 0.4, w * 0.7), random.uniform(h * 0.4, h * 0.7))
+    random_mouse_move(
+        page,
+        (0, 0),
+        mouse_pos,
+    )
+
+    # Click th  e correct 'Neue Suche' (in result-navigation)
+    if (None, None, []) != parse_wgzimmer_search_results(page.content()):
+        logger.info("We are on results page, going to new search")
+        time.sleep(random.uniform(1.5, 3.5))
+        button = page.locator(
+            "div.result-navigation a.search", has_text="Neue Suche"
+        ).nth(0)
+        mouse_pos = move_to_and_click(page, button, mouse_pos)
+
+    time.sleep(random.uniform(1.5, 3.5))
+    page.mouse.wheel(0, 100)
+    time.sleep(0.2)
+
+    zürich_stadt = page.locator("span.stateShortcut[data-state='zurich-stadt']")
+    logger.info("moving to zürich stadt")
+    mouse_pos = move_to_and_click(page, zürich_stadt, mouse_pos)
+
+    time.sleep(random.uniform(0.5, 1.5))
+    # scroll to and click Suchen
+    suchen = page.locator("input[type='button'][value='Suchen']")
+    logger.info("moving to suchen")
+    mouse_pos = move_to_and_click(page, suchen, mouse_pos)
+    suchen.click()
+
+
+def extract_listings(page, last_update_date):
+    # time.sleep(random.uniform(3, 5))
+    time.sleep(10)
+    if not any(parse_wgzimmer_search_results(page.content())):
+        raise RuntimeError("Not on target page")
+
     # click "Ab dem" ascending
-    page.locator('a.sort[href*="orderDir=asc"]:has-text("Ab dem")').click()
+    page.locator('a.sort[href*="orderDir=asc"]:has-text("Aufgegeben")').click()
     # optional wait
     time.sleep(random.uniform(1, 2))
-    # click "Ab dem" descending
-    page.locator('a.sort[href*="orderDir=desc"]:has-text("Ab dem")').click()
-
-    # Initial fetch to determine total pages
+    # click "Aufgegeben" descending
+    page.locator('a.sort[href*="orderDir=desc"]:has-text("Aufgegeben")').click()
     time.sleep(random.uniform(1, 2))
 
-    html = page.content()
-    current, total, links = parse_wgzimmer_search_results(html)
-    listings.update(links)
-
-    if total is None:
-        logger.warning(
-            "Could not determine total number of pages. Progress bar will not be shown."
-        )
-        total = 1
-
-    progress = tqdm(
-        total=total, initial=current if current else 1, desc="Pages", unit="page"
-    )
+    listings: set[str] = set()
 
     while True:
-        time.sleep(random.uniform(1, 2))
-
         html = page.content()
+        current_date = last_aufgegeben_date(html)
         current, total, links = parse_wgzimmer_search_results(html)
         listings.update(links)
 
         logger.info(
-            f"Parsed page {current} of {total} ({len(listings)} listings so far)"
+            f"Parsed page {current} with last update date {current_date}. ({len(listings)} listings so far)."
         )
 
-        progress.n = current if current else progress.n + 1
-        progress.refresh()
-
-        if current >= total:
+        if current_date < last_update_date or current >= total:
             break
 
+        # move ot next pate
         btn = page.locator("div.skip a.next").first
         btn.click()
         time.sleep(random.uniform(1, 2))
-
-    progress.close()
-    context.close()
     return list(listings)
 
 
-def fetch_table() -> list[str]:
+def fetch_table(last_update_date: date):
     try:
-        with sync_playwright() as playwright:
-            return fetch_function(playwright)
-    except Exception as e:
-        logger.exception(f"Error fetching wg-zimmer.ch {e}")
-        return []
+        with sync_playwright() as p:
+            context = p.chromium.launch_persistent_context(
+                user_data_dir,
+                headless=False,
+                args=[
+                    f"--disable-extensions-except={path_to_extension}",
+                    f"--load-extension={path_to_extension}",
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-setuid-sandbox",
+                    "--disable-gpu",
+                    "--window-size=1920,1080",
+                    "--disable-features=IsolateOrigins,site-per-process",
+                ],
+            )
+            page = context.pages[0]
+
+            open_listings_page(
+                parse_wgzimmer_search_results,
+                random_mouse_move,
+                move_to_and_click,
+                page,
+            )
+
+            listings = extract_listings(page, last_update_date)
+            logger.success("We made it (:")
+            return listings
+    except Exception:
+        logger.exception("Failure")
