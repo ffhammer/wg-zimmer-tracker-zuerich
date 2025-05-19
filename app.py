@@ -71,7 +71,7 @@ min_db_price = min(
     [listing.miete for listing in all_listings if listing.miete is not None] or [0]
 )  # Handle empty or all None
 max_db_price = max(
-    [listing.miete for listing in all_listings if listing.miete is not None] or [1000]
+    [listing.miete for listing in all_listings if listing.miete is not None] or [1500]
 )  # Handle empty or all None
 # Ensure max_db_price is at least a bit higher than min_db_price for the slider
 max_slider_limit = max(max_db_price, min_db_price + 100, 1000)
@@ -82,7 +82,7 @@ price_range = st.sidebar.slider(
     max_value=int(max_slider_limit + 100),  # Add some buffer
     value=(
         0,
-        int(max_db_price if max_db_price > 0 else 1500),
+        int(max_db_price if max_db_price > 0 else 1000),
     ),  # Default: 0 to max found or 1000
     step=50,
 )
@@ -239,8 +239,23 @@ render_map(filtered_listings)
 st.subheader(f"{len(filtered_listings)} von {len(all_listings)} Listings angezeigt")
 
 
-if not filtered_listings:
-    st.warning("Keine Listings entsprechen den aktuellen Filterkriterien.")
-else:
-    # Display listings
-    render_page_lists(filtered_listings)
+# split new vs existing
+new_listings = []
+
+new_listings = [
+    listing
+    for listing in filtered_listings
+    if (info := last_db_update_info.get(listing.website))
+    and listing.first_seen.date() == info.date.date()
+]
+other_listings = [
+    listing for listing in filtered_listings if listing not in new_listings
+]
+
+if new_listings:
+    st.subheader("Neue Listings")
+    render_page_lists(new_listings)
+
+if other_listings:
+    st.subheader("Weitere Listings")
+    render_page_lists(other_listings)
