@@ -203,7 +203,6 @@ def open_listings_page(
     suchen = page.locator("input[type='button'][value='Suchen']")
     logger.info("moving to suchen")
     mouse_pos = move_to_and_click(page, suchen, mouse_pos)
-    suchen.click()
 
 
 def extract_listings(page, last_update_date):
