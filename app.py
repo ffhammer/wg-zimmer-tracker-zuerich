@@ -3,6 +3,7 @@ from datetime import date, datetime, time
 from typing import Optional
 
 import streamlit as st
+from loguru import logger
 
 from src.database import (
     get_all_listings_stored,
@@ -41,6 +42,7 @@ if st.sidebar.button("Neue Daten fetchen & DB aktualisieren"):
             st.sidebar.success("Datenbank erfolgreich geprüft/aktualisiert!")
             st.rerun()
         except Exception as e:
+            logger.exception(f"Fehler beim Datenbank-Update: {e}")
             st.sidebar.error(f"Fehler beim Datenbank-Update: {e}")
 
 

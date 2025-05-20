@@ -4,28 +4,25 @@ from datetime import datetime
 from typing import List, Literal, Optional, Tuple
 
 from pydantic import HttpUrl
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, SQLModel, create_engine, select
 from tinydb import Query, TinyDB
 
 from src import students_ch, wg_zimmer_ch, woko
 from src.geo.commutes import batch_fetch_commutes
 from src.logger import logger
 from src.models import (
-    WEBSITE_TO_MODEL,
     BaseListing,
     DataBaseUpdate,
     ExampleDraft,
     ListingSQL,
-    StudentsCHListing,
     Webiste,
-    WGZimmerCHListing,
-    WokoListing,
 )
 
 DB_FILE = os.path.join("db.json")
 MAX_GEO_REQEUSTS_PER_MINUTE = 33
 
 enginge = create_engine("sqlite:///listings.db")
+SQLModel.metadata.create_all(enginge)
 db = TinyDB(DB_FILE, indent=4, ensure_ascii=False)
 updates_table = db.table("updates")
 drafts_table = db.table("drafts")
@@ -64,16 +61,17 @@ def upsert_listings(
     updated_count = 0
 
     insert_urls = []
+    with Session(enginge) as session:
+        for url in urls:
+            val = session.get(ListingSQL, str(url))
+            if val is None:
+                insert_urls.append(url)
+                continue
 
-    for url in urls:
-        existing_doc = get_listing_by_url(str(url))
-        if existing_doc:
-            model = load_correct(existing_doc)
-            model.update(now)
-            existing_doc.update(model.dump_json_serializable())
+            val.last_seen = now
+            val.status = "active"
             updated_count += 1
-        else:
-            insert_urls.append(url)
+        session.commit()
 
     new_count = insert(insert_urls, now, website)
 
@@ -105,10 +103,6 @@ def insert(urls: list[HttpUrl], now: datetime, website: Webiste):
         logger.exception(f"Error inserting new listing failed: {e}.")
 
     return False
-
-
-def load_correct(json) -> WGZimmerCHListing | StudentsCHListing | WokoListing:
-    return WEBSITE_TO_MODEL[json["website"]].model_validate(json)
 
 
 def update(scraped, url_str, existing_doc, now):
