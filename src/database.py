@@ -4,8 +4,8 @@ from datetime import datetime
 from typing import List, Literal, Optional, Tuple
 
 from pydantic import HttpUrl
+from sqlmodel import Session, create_engine, select
 from tinydb import Query, TinyDB
-from tinydb.operations import set as tinyset
 
 from src import students_ch, wg_zimmer_ch, woko
 from src.geo.commutes import batch_fetch_commutes
@@ -15,6 +15,7 @@ from src.models import (
     BaseListing,
     DataBaseUpdate,
     ExampleDraft,
+    ListingSQL,
     StudentsCHListing,
     Webiste,
     WGZimmerCHListing,
@@ -24,8 +25,8 @@ from src.models import (
 DB_FILE = os.path.join("db.json")
 MAX_GEO_REQEUSTS_PER_MINUTE = 33
 
+enginge = create_engine("sqlite:///listings.db")
 db = TinyDB(DB_FILE, indent=4, ensure_ascii=False)
-listings_table = db.table("listings")
 updates_table = db.table("updates")
 drafts_table = db.table("drafts")
 query = Query()
@@ -43,17 +44,11 @@ def to_json_serialiable(dic: dict) -> dict:
 
 def get_listing_by_url(url: str) -> Optional[BaseListing]:
     """Holt ein spezifisches Listing anhand seiner URL."""
-    result = listings_table.get(query.url == url)
-    if result:
-        try:
-            # Manually handle potential type errors during conversion
-            return load_correct(result)
-        except Exception as e:
-            logger.error(
-                f"Failed to parse listing from DB for URL {url}: {e}. Data: {result}"
-            )
-            return None
-    return None
+
+    with Session(enginge) as session:
+        val = session.get(ListingSQL, url)
+
+    return val.to_pydantic() if val else None
 
 
 def upsert_listings(
@@ -71,7 +66,7 @@ def upsert_listings(
     insert_urls = []
 
     for url in urls:
-        existing_doc = listings_table.get(query.url == str(url))
+        existing_doc = get_listing_by_url(str(url))
         if existing_doc:
             model = load_correct(existing_doc)
             model.update(now)
@@ -100,8 +95,11 @@ def insert(urls: list[HttpUrl], now: datetime, website: Webiste):
         )
         logger.debug(f"fetched {len(urls)} commutes  for {website}")
 
-        for listing in listings:
-            listings_table.insert(listing.dump_json_serializable())
+        with Session(enginge) as session:
+            session.add_all(
+                [ListingSQL.from_pydantic(listings) for listings in listings]
+            )
+            session.commit()
         return len(listings)
     except Exception as e:
         logger.exception(f"Error inserting new listing failed: {e}.")
@@ -125,37 +123,35 @@ def update(scraped, url_str, existing_doc, now):
 
 def mark_listings_as_deleted(urls: list[HttpUrl], website: Webiste) -> int:
     """Markiert Listings in der DB als 'deleted', wenn sie nicht im letzten Fetch waren."""
-
     active_urls_in_fetch = {str(url) for url in urls}
-
     deleted_count = 0
-    active_listings_in_db = listings_table.search(
-        (query.status == "active") & (query.website == website)
-    )
-    for listing_doc in active_listings_in_db:
-        if listing_doc.get("url") not in active_urls_in_fetch:
-            try:
-                listings_table.update(
-                    tinyset("status", "deleted"), query.url == listing_doc["url"]
-                )
-                deleted_count += 1
-                logger.debug(f"Marked listing as deleted: {listing_doc['url']}")
-            except Exception as e:
-                logger.error(
-                    f"Error marking listing as deleted {listing_doc.get('url')}: {e}"
-                )
-
+    with Session(enginge) as session:
+        statement = select(ListingSQL).where(
+            ListingSQL.status == "active", ListingSQL.website == website
+        )
+        listings = session.exec(statement).all()
+        for listing in listings:
+            if listing.url not in active_urls_in_fetch:
+                try:
+                    listing.status = "deleted"
+                    session.add(listing)
+                    deleted_count += 1
+                    logger.debug(f"Marked listing as deleted: {listing.url}")
+                except Exception as e:
+                    logger.error(f"Error marking listing as deleted {listing.url}: {e}")
+        session.commit()
     return deleted_count
 
 
 def get_all_listings_stored(include_deleted=False) -> List[BaseListing]:
     """Holt alle Listings aus der DB."""
-    if include_deleted:
-        results = listings_table.all()
-    else:
-        results = listings_table.search(query.status == "active")
-
-    return [load_correct(doc) for doc in results]
+    with Session(enginge) as session:
+        if include_deleted:
+            statement = select(ListingSQL)
+        else:
+            statement = select(ListingSQL).where(ListingSQL.status == "active")
+        listings = session.exec(statement).all()
+        return [listings.to_pydantic() for listings in listings]
 
 
 def update_listing_user_status(
@@ -163,10 +159,15 @@ def update_listing_user_status(
 ) -> bool:
     """Aktualisiert den 'gesehen' oder 'gemerkt' Status eines Listings."""
     logger.debug(f"Updating DB: set {field}={value} for url={url}")
-    try:
-        listings_table.update({field: value}, query.url == url)
-    except Exception as e:
-        logger.error(f"Error updating user status for {url}: {e}")
+    with Session(enginge) as session:
+        listing = session.get(ListingSQL, url)
+        if listing:
+            setattr(listing, field, value)
+            session.commit()
+            return True
+        else:
+            logger.error(f"Listing not found for url={url}")
+            return False
 
 
 def update_database(

@@ -5,6 +5,8 @@ from typing import List, Literal, Optional
 
 import requests
 from pydantic import BaseModel, EmailStr, Field, HttpUrl
+from sqlmodel import Column, Enum, SQLModel
+from sqlmodel import Field as SQLField
 
 from src.logger import logger
 
@@ -207,3 +209,44 @@ WEBSITE_TO_MODEL: dict[Webiste, BaseListing] = {
     Webiste.woko: WokoListing,
     Webiste.students_ch: StudentsCHListing,
 }
+
+
+class ListingSQL(SQLModel, table=True):
+    url: str = SQLField(index=True, primary_key=True)
+    gesehen: bool = SQLField(default=False, description="Vom User als gesehen markiert")
+    gemerkt: bool = SQLField(default=False, description="Vom User gemerkt")
+    status: str = SQLField(
+        default="active", description="Ist das Listing noch aktuell?"
+    )
+    first_seen: datetime = SQLField(
+        default_factory=datetime.now,
+        description="Wann wurde das Listing zum ersten Mal gesehen? -> db intern",
+    )
+    last_seen: datetime = SQLField(
+        default_factory=datetime.now,
+        description="Wann wurde das Listing zuletzt im Fetch gesehen? -> db intern",
+    )
+    listing: str
+    website: Webiste = SQLField(sa_column=Column(Enum(Webiste), nullable=False))
+
+    @classmethod
+    def from_pydantic(cls, listing: BaseListing) -> "ListingSQL":
+        return cls(
+            url=str(listing.url),
+            gesehen=listing.gesehen,
+            gemerkt=listing.gemerkt,
+            status=listing.status,
+            first_seen=listing.first_seen,
+            last_seen=listing.last_seen,
+            listing=listing.model_dump_json(),
+            website=listing.website,
+        )
+
+    def to_pydantic(self) -> WGZimmerCHListing | StudentsCHListing | WokoListing:
+        model = WEBSITE_TO_MODEL[self.website].model_validate_json(self.listing)
+        model.gesehen = self.gesehen
+        model.gemerkt = self.gemerkt
+        model.status = self.status
+        model.first_seen = self.first_seen
+        model.last_seen = self.last_seen
+        return model
