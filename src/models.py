@@ -212,6 +212,7 @@ WEBSITE_TO_MODEL: dict[Webiste, BaseListing] = {
 
 
 class ListingSQL(SQLModel, table=True):
+    __table_args__ = {"extend_existing": True}
     url: str = SQLField(index=True, primary_key=True)
     gesehen: bool = SQLField(default=False, description="Vom User als gesehen markiert")
     gemerkt: bool = SQLField(default=False, description="Vom User gemerkt")
