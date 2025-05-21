@@ -170,39 +170,39 @@ def open_listings_page(
     page.goto("https://www.wgzimmer.ch/wgzimmer/search/mate.html")
     inject_fake_cursor(page)
     # inject_fake_cursor(page)
+    time.sleep(5)
+    # logger.info("initial random movements")
+    # time.sleep(random.uniform(1.5, 3.5))
+    # w, h = page.viewport_size["width"], page.viewport_size["height"]
+    # mouse_pos = (random.uniform(w * 0.4, w * 0.7), random.uniform(h * 0.4, h * 0.7))
+    # random_mouse_move(
+    #     page,
+    #     (0, 0),
+    #     mouse_pos,
+    # )
 
-    logger.info("initial random movements")
-    time.sleep(random.uniform(1.5, 3.5))
-    w, h = page.viewport_size["width"], page.viewport_size["height"]
-    mouse_pos = (random.uniform(w * 0.4, w * 0.7), random.uniform(h * 0.4, h * 0.7))
-    random_mouse_move(
-        page,
-        (0, 0),
-        mouse_pos,
-    )
+    # # Click th  e correct 'Neue Suche' (in result-navigation)
+    # if (None, None, []) != parse_wgzimmer_search_results(page.content()):
+    #     logger.info("We are on results page, going to new search")
+    #     time.sleep(random.uniform(1.5, 3.5))
+    #     button = page.locator(
+    #         "div.result-navigation a.search", has_text="Neue Suche"
+    #     ).nth(0)
+    #     mouse_pos = move_to_and_click(page, button, mouse_pos)
 
-    # Click th  e correct 'Neue Suche' (in result-navigation)
-    if (None, None, []) != parse_wgzimmer_search_results(page.content()):
-        logger.info("We are on results page, going to new search")
-        time.sleep(random.uniform(1.5, 3.5))
-        button = page.locator(
-            "div.result-navigation a.search", has_text="Neue Suche"
-        ).nth(0)
-        mouse_pos = move_to_and_click(page, button, mouse_pos)
+    # time.sleep(random.uniform(1.5, 3.5))
+    # page.mouse.wheel(0, 100)
+    # time.sleep(0.2)
 
-    time.sleep(random.uniform(1.5, 3.5))
-    page.mouse.wheel(0, 100)
-    time.sleep(0.2)
+    # zürich_stadt = page.locator("span.stateShortcut[data-state='zurich-stadt']")
+    # logger.info("moving to zürich stadt")
+    # mouse_pos = move_to_and_click(page, zürich_stadt, mouse_pos)
 
-    zürich_stadt = page.locator("span.stateShortcut[data-state='zurich-stadt']")
-    logger.info("moving to zürich stadt")
-    mouse_pos = move_to_and_click(page, zürich_stadt, mouse_pos)
-
-    time.sleep(random.uniform(0.5, 1.5))
-    # scroll to and click Suchen
-    suchen = page.locator("input[type='button'][value='Suchen']")
-    logger.info("moving to suchen")
-    mouse_pos = move_to_and_click(page, suchen, mouse_pos)
+    # time.sleep(random.uniform(0.5, 1.5))
+    # # scroll to and click Suchen
+    # suchen = page.locator("input[type='button'][value='Suchen']")
+    # logger.info("moving to suchen")
+    # mouse_pos = move_to_and_click(page, suchen, mouse_pos)
 
 
 def extract_listings(page, last_update_date):
