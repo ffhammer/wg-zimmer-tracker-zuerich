@@ -22,7 +22,7 @@ def get_personal_information():
 
 # Initialize the AI model
 model = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash-preview-04-17", api_key=os.environ["GEMINI_API_KEY"]
+    model="gemini-2.5-flash-preview-05-20", api_key=os.environ["GEMINI_API_KEY"]
 )
 
 STANDARD_SYSTEM_PROMPT: str = """
