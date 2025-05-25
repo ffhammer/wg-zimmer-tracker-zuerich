@@ -4,6 +4,7 @@ from typing import Optional
 
 import streamlit as st
 from loguru import logger
+from rapidfuzz import fuzz, process
 
 from src.database import (
     get_all_listings_stored,
@@ -198,6 +199,39 @@ if filter_not_bookmarked:
 elif filter_only_bookmarked:
     # Only apply if "not bookmarked" isn't checked
     filtered_listings = [listing for listing in filtered_listings if listing.gemerkt]
+
+
+def fuzzy_search(
+    query: str, listings: list[BaseListing], threshold: int = 60
+) -> list[BaseListing]:
+    """Return listings whose combined-text score ≥ threshold."""
+    # build a dict[id → searchable string]
+    corpus = {
+        listing.id: " ".join(
+            filter(
+                None,
+                [
+                    listing.beschreibung,
+                    str(listing.miete),
+                    listing.region,
+                    listing.plz_und_stadt,
+                    *[getattr(listing, atr) for atr in listing.additional_fields],
+                ],
+            )
+        )
+        for listing in listings
+    }
+    matches = process.extract(
+        query, corpus, scorer=fuzz.partial_ratio, score_cutoff=threshold
+    )
+    id_to_listing = {listing.id: listing for listing in listings}
+    return [id_to_listing[key] for _, _, key in matches]
+
+
+# in your Streamlit app
+query: str = st.sidebar.text_input("🔍 Fuzzy search")
+if query:
+    filtered_listings = fuzzy_search(query, filtered_listings)
 
 
 # Apply Sorting
