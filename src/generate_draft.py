@@ -2,8 +2,8 @@ import json
 import os
 
 from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from google import genai
+from google.genai import types
 
 from src.database import load_saved_draft_listing_pairs
 from src.logger import logger
@@ -20,10 +20,10 @@ def get_personal_information():
     return personal_background
 
 
-# Initialize the AI model
-model = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash-preview-05-20", api_key=os.environ["GEMINI_API_KEY"]
+client = genai.Client(
+    api_key=os.environ["GEMINI_API_KEY"],
 )
+
 
 STANDARD_SYSTEM_PROMPT: str = """
 You are helping Felix write a personalized draft message for a housing listing in Zürich.
@@ -42,35 +42,40 @@ def generate_draft(
     include_imgs: bool = True,
 ):
     logger.debug("starting to generate a draft")
-    system_msg = SystemMessage(system_prompt)
-    user_msg = HumanMessage(
-        content=[{"type": "text", "text": get_personal_information()}]
-    )
+    personal_info = get_personal_information()
 
     example_pairs = load_saved_draft_listing_pairs()
-    logger.debug(f"Incorporating {len(example_pairs)} examples")
     examples = "Example Drafts:\n"
     for example_listing, example_draft in example_pairs:
         examples += (
             "\n"
             + ("-") * 100
-            + (
-                f"""\nListing: {json.dumps(example_listing.data_for_llm())}
-        Message: {example_draft.content}\n"""
-                + "-" * 100
-            )
+            + f"\nListing: {json.dumps(example_listing.data_for_llm())}\nMessage: {example_draft.content}\n"
+            + "-" * 100
         )
 
-    examples = HumanMessage(content=examples)
+    prompt = [
+        types.Content(role="user", parts=[types.Part(text=personal_info)]),
+        types.Content(role="user", parts=[types.Part(text=examples)]),
+        types.Content(
+            role="user",
+            parts=[
+                types.Part(
+                    text=json.dumps(
+                        listing.to_llm_input(include_images=include_imgs), indent=4
+                    )
+                )
+            ],
+        ),
+    ]
 
-    listing_msg = HumanMessage(
-        content=listing.to_llm_input(include_images=include_imgs)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash-preview-05-20",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        ),
     )
-    print("start")
-    inputs_tokens, output_tokens = 0, 0
-    for i in model.stream([system_msg, examples, user_msg, listing_msg]):
-        inputs_tokens += i.usage_metadata["input_tokens"]
-        output_tokens += i.usage_metadata["output_tokens"]
-        yield i.content
-
-    logger.info(f"Took {inputs_tokens} input  and {output_tokens} ouput tokens")
+    logger.info("Draft generation complete")
+    return response.text
