@@ -2,6 +2,8 @@
 
 Finde und verwalte WG-Zimmer in Zürich – automatisch und visuell.
 
+![Example](imgs/example.png)
+
 ---
 
 ## 🔎 Unterstützte Webseiten
