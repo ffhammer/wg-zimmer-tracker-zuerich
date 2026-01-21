@@ -19,7 +19,7 @@ from src.models import (
 )
 
 DB_FILE = os.path.join("db.json")
-MAX_GEO_REQEUSTS_PER_MINUTE = 33
+MAX_GEO_REQEUSTS_PER_MINUTE = 15
 
 enginge = create_engine("sqlite:///listings.db")
 SQLModel.metadata.create_all(enginge)

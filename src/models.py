@@ -109,6 +109,9 @@ class BaseListing(BaseModel):
     public_transport: Optional[PublicTransportConnection] = None
     bike: Optional[BikeConnection] = None
 
+    public_transport_stark: Optional[PublicTransportConnection] = None
+    bike_stark: Optional[BikeConnection] = None
+
     # specific for our application
     gesehen: bool = Field(default=False, description="Vom User als gesehen markiert")
     gemerkt: bool = Field(default=False, description="Vom User gemerkt")

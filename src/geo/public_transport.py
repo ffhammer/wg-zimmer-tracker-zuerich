@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 import requests
 from dotenv import load_dotenv
 
-from src.eth_location import ETH_LOCATION
+from src.locations import ETH_LOCATION
 from src.logger import logger
 from src.models import Journey, PublicTransportConnection
 
@@ -83,7 +83,9 @@ def fetch_public_transport_connection(
 
     resp = requests.get(url)
     if not resp.ok:
-        logger.error("Request failed with status code %s", resp.status_code)
+        logger.error(
+            f"Request failed with status code {resp.status_code}",
+        )
         return None
 
     data = resp.json()

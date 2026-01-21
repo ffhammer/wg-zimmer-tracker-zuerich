@@ -5,7 +5,7 @@ import polyline
 import requests
 from dotenv import load_dotenv
 
-from src.eth_location import ETH_LOCATION
+from src.locations import ETH_LOCATION
 from src.logger import logger
 from src.models import BikeConnection
 
@@ -15,6 +15,8 @@ assert load_dotenv()
 def fetch_bike_connection(
     from_lat: float,
     from_lon: float,
+    to_lat: float = ETH_LOCATION.latitutude,
+    to_lon: float = ETH_LOCATION.longitude,
 ) -> Optional[BikeConnection]:
     url = "https://api.openrouteservice.org/v2/directions/cycling-regular"
     headers = {
@@ -24,7 +26,7 @@ def fetch_bike_connection(
     body = {
         "coordinates": [
             [from_lon, from_lat],
-            [ETH_LOCATION.longitude, ETH_LOCATION.latitutude],
+            [to_lon, to_lat],
         ]
     }
     try:

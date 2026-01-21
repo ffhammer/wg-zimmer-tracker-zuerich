@@ -5,8 +5,8 @@ import pydeck as pdk
 import streamlit as st
 
 from src.database import save_draft
-from src.eth_location import ETH_LOCATION
 from src.generate_draft import generate_draft, get_personal_information
+from src.locations import ETH_LOCATION
 from src.models import BaseListing, ExampleDraft
 from src.render.utils import handle_status_update
 

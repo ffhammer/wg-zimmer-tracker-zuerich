@@ -5,6 +5,7 @@ from tqdm import tqdm
 
 from src.geo.bike import fetch_bike_connection
 from src.geo.public_transport import fetch_public_transport_connection
+from src.locations import Stark_LOCATION
 from src.logger import logger
 from src.models import BaseListing
 
@@ -24,12 +25,27 @@ def fetch_commutes(listing: BaseListing) -> BaseListing:
         listing.public_transport = fetch_public_transport_connection(
             from_lat=listing.latitude, from_lon=listing.longitude
         )
+
+    if not listing.bike_stark:
+        listing.bike_stark = fetch_bike_connection(
+            from_lat=listing.latitude,
+            from_lon=listing.longitude,
+            to_lat=Stark_LOCATION.latitutude,
+            to_lon=Stark_LOCATION.longitude,
+        )
+    if not listing.public_transport_stark:
+        listing.public_transport_stark = fetch_public_transport_connection(
+            from_lat=listing.latitude,
+            from_lon=listing.longitude,
+            to_lat=Stark_LOCATION.latitutude,
+            to_lon=Stark_LOCATION.longitude,
+        )
     return listing
 
 
 def batch_fetch_commutes(
     inputs: list[BaseListing],
-    max_requests_per_minute: int = 40,
+    max_requests_per_minute: int = 10,
 ) -> list[BaseListing]:
     logger.debug(f"Starting commutes fetching for {len(inputs)}")
     outputs: dict[str, BaseListing] = {}
