@@ -85,8 +85,8 @@ price_range = st.sidebar.slider(
     max_value=int(max_slider_limit + 100),  # Add some buffer
     value=(
         0,
-        int(max_db_price if max_db_price > 0 else 1000),
-    ),  # Default: 0 to max found or 1000
+        700,
+    ),
     step=50,
 )
 min_price, max_price = price_range
@@ -97,8 +97,8 @@ selected_websites = st.sidebar.multiselect(
     default=[w.value for w in Webiste],
 )
 
-max_bike_min = st.sidebar.slider("Max. Fahrrad-Minuten (ETH)", 0, 60, 60)
-max_bike_stark_min = st.sidebar.slider("Max. Fahrrad-Minuten (Stark Gym)", 0, 60, 60)
+max_bike_min = st.sidebar.slider("Max. Fahrrad-Minuten (ETH)", 0, 60, 25)
+max_bike_stark_min = st.sidebar.slider("Max. Fahrrad-Minuten (Stark Gym)", 0, 60, 35)
 
 
 # User Status Filter
@@ -107,7 +107,7 @@ filter_not_bookmarked = st.sidebar.checkbox(
     "Nur nicht kontaktiert anzeigen", value=True
 )
 filter_only_bookmarked = st.sidebar.checkbox("Nur kontaktiert anzeigen", value=False)
-filter_unlimited = st.sidebar.checkbox("Nur unbefristete anzeigen", value=False)
+filter_unlimited = st.sidebar.checkbox("Nur unbefristete anzeigen", value=True)
 
 st.sidebar.markdown("---")
 
