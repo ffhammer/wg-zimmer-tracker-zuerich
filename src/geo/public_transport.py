@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 import requests
@@ -64,14 +64,21 @@ def parse_duration(duration: str) -> int:
 
 
 def fetch_public_transport_connection(
-    from_lat: float, from_lon: float, at_time: datetime = datetime(2025, 4, 30, 8, 0)
+    from_lat: float,
+    from_lon: float,
+    to_lat: float = ETH_LOCATION.latitutude,
+    to_lon: float = ETH_LOCATION.longitude,
 ) -> Optional[PublicTransportConnection]:
+    today = datetime.today()
+    at_time = (today - timedelta(days=today.weekday())).replace(
+        hour=8, minute=0, second=0, microsecond=0
+    )
     date_str = at_time.strftime("%Y-%m-%d")
     time_str = at_time.strftime("%H:%M")
 
     url = (
         "https://transport.opendata.ch/v1/connections"
-        f"?from={from_lat},{from_lon}&to={ETH_LOCATION.latitutude},{ETH_LOCATION.longitude}&date={date_str}&time={time_str}"
+        f"?from={from_lat},{from_lon}&to={to_lat},{to_lon}&date={date_str}&time={time_str}"
     )
 
     resp = requests.get(url)
