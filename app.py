@@ -54,7 +54,7 @@ st.sidebar.header("Filter")
 
 # Date Filter (Default: September/October of current year)
 current_year = datetime.now().year
-default_start_date = date(current_year, 8, 1)
+default_start_date = date(current_year, 1, 1)
 default_end_date = date(current_year, 10, 31)
 
 date_range = st.sidebar.date_input(
@@ -97,7 +97,8 @@ selected_websites = st.sidebar.multiselect(
     default=[w.value for w in Webiste],
 )
 
-max_bike_min = st.sidebar.slider("Max. Fahrrad-Minuten", 0, 60, 60)
+max_bike_min = st.sidebar.slider("Max. Fahrrad-Minuten (ETH)", 0, 60, 60)
+max_bike_stark_min = st.sidebar.slider("Max. Fahrrad-Minuten (Stark Gym)", 0, 60, 60)
 
 
 # User Status Filter
@@ -106,6 +107,7 @@ filter_not_bookmarked = st.sidebar.checkbox(
     "Nur nicht kontaktiert anzeigen", value=True
 )
 filter_only_bookmarked = st.sidebar.checkbox("Nur kontaktiert anzeigen", value=False)
+filter_unlimited = st.sidebar.checkbox("Nur unbefristete anzeigen", value=False)
 
 st.sidebar.markdown("---")
 
@@ -186,7 +188,17 @@ filtered_listings = [
     for listing in filtered_listings
     if not listing.bike or listing.bike.duration_min <= max_bike_min
 ]
+filtered_listings = [
+    listing
+    for listing in filtered_listings
+    if not listing.bike_stark or listing.bike_stark.duration_min <= max_bike_stark_min
+]
 # User Status Filters
+if filter_unlimited:
+    filtered_listings = [
+        listing for listing in filtered_listings if listing.datum_frei_bis is None
+    ]
+
 if filter_not_seen:
     filtered_listings = [
         listing for listing in filtered_listings if not listing.gesehen
